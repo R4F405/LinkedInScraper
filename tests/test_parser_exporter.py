@@ -44,6 +44,8 @@ def sample_records() -> list[dict]:
             "email": "maria.garcia@example.com",
             "headline": "Senior Software Engineer at Acme Corp",
             "location": "Barcelona, Cataluña, España",
+            "company": "Acme Corp",
+            "education": "Universitat Politècnica de Catalunya",
             "source_file": "sample_profile.html",
         }
     ]
@@ -71,13 +73,21 @@ class TestParseProfileHtml:
         data = parse_profile_html(sample_html)
         assert data["email"] == "maria.garcia@example.com"
 
+    def test_company_extracted(self, sample_html):
+        data = parse_profile_html(sample_html)
+        assert data["company"] == "Acme Corp"
+
+    def test_education_extracted(self, sample_html):
+        data = parse_profile_html(sample_html)
+        assert data["education"] == "Universitat Politècnica de Catalunya"
+
     def test_returns_dict_with_expected_keys(self, sample_html):
         data = parse_profile_html(sample_html)
-        assert set(data.keys()) == {"name", "email", "headline", "location"}
+        assert set(data.keys()) == {"name", "email", "headline", "location", "company", "education"}
 
     def test_empty_html_returns_empty_strings(self):
         data = parse_profile_html("<html></html>")
-        assert data == {"name": "", "email": "", "headline": "", "location": ""}
+        assert data == {"name": "", "email": "", "headline": "", "location": "", "company": "", "education": ""}
 
 
 class TestParseProfileFile:
@@ -115,7 +125,7 @@ class TestToDataframe:
 
     def test_has_expected_columns(self, sample_records):
         df = to_dataframe(sample_records)
-        assert list(df.columns) == ["name", "email", "headline", "location", "source_file"]
+        assert list(df.columns) == ["name", "email", "headline", "location", "company", "education", "source_file"]
 
     def test_row_values_match_input(self, sample_records):
         df = to_dataframe(sample_records)
@@ -127,6 +137,8 @@ class TestToDataframe:
         df = to_dataframe([{"name": "Test User"}])
         assert df["email"].iloc[0] == ""
         assert df["location"].iloc[0] == ""
+        assert df["company"].iloc[0] == ""
+        assert df["education"].iloc[0] == ""
 
 
 class TestExportResults:
