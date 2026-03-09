@@ -13,9 +13,4 @@ __pycache__/
 data/raw/*.html
 results_*.csv
 results_*.xlsx
-<<<<<<< HEAD
-venv
 output/
-=======
-output/
->>>>>>> bfee3c3fa788823ccd003ac5480950a6ad9fa088
