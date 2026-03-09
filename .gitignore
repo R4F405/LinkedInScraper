@@ -1,7 +1,16 @@
-.env
+# Entorno virtual
+venv/
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+
+# Credenciales
+.env
+
+# Datos
 data/raw/*.html
 results_*.csv
 results_*.xlsx
+output/
