@@ -31,11 +31,11 @@ def _scroll_to_load(driver: webdriver.Chrome, pauses: int = 3, pause_time: float
         last_height = new_height
 
 
-def _extract_email_from_modal(driver: webdriver.Chrome) -> str:
+def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
     """
-    Abre el modal 'Información de contacto' y extrae el email con Selenium
+    Abre el modal 'Información de contacto' y extrae el email y teléfono con Selenium
     mientras el modal está activo en el DOM.
-    Devuelve el email como string, o "" si no se encuentra.
+    Devuelve un dict con 'email' y 'phone', ambos string (vacío si no se encuentra).
     """
     # Intentar abrir el modal
     btn_selectors = [
@@ -65,7 +65,7 @@ def _extract_email_from_modal(driver: webdriver.Chrome) -> str:
             continue
 
     if not opened:
-        return ""
+        return {"email": "", "phone": ""}
 
     # Buscar el email dentro del modal — buscar cualquier enlace mailto:
     email_selectors = [
@@ -79,9 +79,26 @@ def _extract_email_from_modal(driver: webdriver.Chrome) -> str:
             el = driver.find_element(By.CSS_SELECTOR, sel)
             href = el.get_attribute("href") or ""
             text = el.text.strip()
-            # Preferir el texto visible; si no, extraer de href
             email = text if text else href.replace("mailto:", "").strip()
             if email:
+                break
+        except NoSuchElementException:
+            continue
+
+    # Buscar el teléfono dentro del modal — buscar cualquier enlace tel:
+    phone_selectors = [
+        "div.artdeco-modal a[href^='tel:']",
+        "section.ci-phone a",
+        "a[href^='tel:']",
+    ]
+    phone = ""
+    for sel in phone_selectors:
+        try:
+            el = driver.find_element(By.CSS_SELECTOR, sel)
+            href = el.get_attribute("href") or ""
+            text = el.text.strip()
+            phone = text if text else href.replace("tel:", "").strip()
+            if phone:
                 break
         except NoSuchElementException:
             continue
@@ -97,7 +114,7 @@ def _extract_email_from_modal(driver: webdriver.Chrome) -> str:
     except NoSuchElementException:
         pass
 
-    return email
+    return {"email": email, "phone": phone}
 
 
 def fetch_profile(driver: webdriver.Chrome, url: str) -> Path:
@@ -119,17 +136,17 @@ def fetch_profile(driver: webdriver.Chrome, url: str) -> Path:
 
     _scroll_to_load(driver)
 
-    # Extraer email con Selenium mientras el modal está vivo
-    email = _extract_email_from_modal(driver)
+    # Extraer email y teléfono con Selenium mientras el modal está vivo
+    contact = _extract_contact_from_modal(driver)
 
     # Guardar HTML
     slug = url.rstrip("/").split("/")[-1]
     html_path = RAW_HTML_DIR / f"{slug}.html"
     html_path.write_text(driver.page_source, encoding="utf-8")
 
-    # Guardar JSON sidecar con el email
+    # Guardar JSON sidecar con email y teléfono
     json_path = RAW_HTML_DIR / f"{slug}.json"
-    json_path.write_text(json.dumps({"email": email}, ensure_ascii=False), encoding="utf-8")
+    json_path.write_text(json.dumps(contact, ensure_ascii=False), encoding="utf-8")
 
     return html_path
 

@@ -47,6 +47,13 @@ _EMAIL_SELECTORS = [
     "a[href^='mailto:']",
 ]
 
+_PHONE_SELECTORS = [
+    "section.pv-contact-info__contact-type.ci-phone a",
+    ".ci-phone .pv-contact-info__contact-link",
+    "section.ci-phone a",
+    "a[href^='tel:']",
+]
+
 # Empresa: primera experiencia laboral (sección Experience)
 _COMPANY_SELECTORS = [
     "#experience ~ .pvs-list__outer-container .pvs-entity span[aria-hidden='true']",
@@ -139,6 +146,7 @@ def parse_profile_html(html: str) -> dict:
     return {
         "name":      _first_text(soup, _NAME_SELECTORS),
         "email":     _first_text(soup, _EMAIL_SELECTORS),
+        "phone":     _first_text(soup, _PHONE_SELECTORS),
         "headline":  _first_text(soup, _HEADLINE_SELECTORS),
         "location":  _first_text(soup, _LOCATION_SELECTORS),
         "company":   _extract_company(soup),
@@ -161,6 +169,7 @@ def parse_profile_file(html_path: Path) -> dict:
         try:
             sidecar = json.loads(json_path.read_text(encoding="utf-8"))
             data["email"] = sidecar.get("email", "") or data["email"]
+            data["phone"] = sidecar.get("phone", "") or data["phone"]
         except (json.JSONDecodeError, KeyError):
             pass
 
