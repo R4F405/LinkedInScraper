@@ -1,4 +1,14 @@
-selenium==4.18.1
-webdriver-manager==4.0.1
-python-dotenv==1.0.1
+# Miquel (scraper)
+selenium>=4.18.0
+undetected-chromedriver>=3.5.5
+webdriver-manager>=4.0.1
+python-dotenv>=1.0.0
+
+# Andreu (parser + exporter)
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+pandas>=2.2.0
+openpyxl>=3.1.0
+
+# Tests
 pytest==8.1.1
