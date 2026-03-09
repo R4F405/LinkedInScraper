@@ -1,6 +1,8 @@
 # Miquel (scraper)
-undetected-chromedriver>=3.5.5
 selenium>=4.18.0
+undetected-chromedriver>=3.5.5
+webdriver-manager>=4.0.1
+python-dotenv>=1.0.0
 
 # Andreu (parser + exporter)
 beautifulsoup4>=4.12.0
@@ -8,5 +10,5 @@ lxml>=5.1.0
 pandas>=2.2.0
 openpyxl>=3.1.0
 
-# Compartido
-python-dotenv>=1.0.0
+# Tests
+pytest==8.1.1
