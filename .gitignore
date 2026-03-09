@@ -6,3 +6,4 @@ data/raw/*.html
 results_*.csv
 results_*.xlsx
 venv
+output/
