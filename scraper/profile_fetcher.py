@@ -113,23 +113,29 @@ def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
         except NoSuchElementException:
             continue
 
-    # Buscar el teléfono dentro del modal — buscar cualquier enlace tel:
-    phone_selectors = [
-        "div.artdeco-modal a[href^='tel:']",
-        "section.ci-phone a",
-        "a[href^='tel:']",
-    ]
+    # Buscar el teléfono dentro del modal:
+    # LinkedIn lo muestra en un <span> plain, NO en un <a href="tel:">
+    # Buscamos la sección cuyo <h3> contenga "tel" (Teléfono / Phone)
     phone = ""
-    for sel in phone_selectors:
-        try:
-            el = driver.find_element(By.CSS_SELECTOR, sel)
-            href = el.get_attribute("href") or ""
-            text = el.text.strip()
-            phone = text if text else href.replace("tel:", "").strip()
-            if phone:
-                break
-        except NoSuchElementException:
-            continue
+    try:
+        sections = driver.find_elements(By.CSS_SELECTOR, "section.pv-contact-info__contact-type")
+        for sec in sections:
+            try:
+                heading = sec.find_element(By.CSS_SELECTOR, "h3.pv-contact-info__header")
+                if "tel" in heading.text.lower() or "phone" in heading.text.lower():
+                    # El número está en el primer span sin la clase --light
+                    spans = sec.find_elements(By.CSS_SELECTOR, "ul span")
+                    for sp in spans:
+                        text = sp.text.strip()
+                        classes = sp.get_attribute("class") or ""
+                        if text and "t-black--light" not in classes:
+                            phone = text
+                            break
+                    break
+            except NoSuchElementException:
+                continue
+    except NoSuchElementException:
+        pass
 
     # Cerrar el modal
     try:
