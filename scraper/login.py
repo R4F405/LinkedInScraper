@@ -51,9 +51,3 @@ def login(driver: webdriver.Chrome) -> bool:
 
     except TimeoutException:
         return False
-```
-
-Y añade al `.env`:
-```
-LINKEDIN_EMAIL=tu@email.com
-LINKEDIN_PASSWORD=tupassword
