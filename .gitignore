@@ -9,6 +9,9 @@ __pycache__/
 # Credenciales
 .env
 
+# Scripts temporales (vista web)
+*.command
+
 # Datos
 data/raw/*.html
 results_*.csv

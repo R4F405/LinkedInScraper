@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Scraper — Tus datos</title>
+  <style>
+    :root {
+      --linkedin-blue: #0a66c2;
+      --linkedin-dark: #004182;
+      --linkedin-light: #e7f0f9;
+      --bg: #f0f4f8;
+      --card: #fff;
+      --text: #1a1a1a;
+      --text-muted: #5e6b78;
+      --border: #e4e8eb;
+      --radius: 10px;
+      --shadow: 0 2px 8px rgba(10, 102, 194, 0.06);
+      --shadow-hover: 0 4px 14px rgba(10, 102, 194, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.75rem;
+      line-height: 1.5;
+      max-width: 1100px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 {
+      color: var(--linkedin-dark);
+      margin: 0 0 1.5rem 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: box-shadow 0.2s ease;
+    }
+    .card:hover { box-shadow: var(--shadow-hover); }
+    .card h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .card .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin: 0 0 1rem 0;
+    }
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .form-row input {
+      flex: 1;
+      min-width: 260px;
+      padding: 0.7rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      background: #fafbfc;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-row input:focus {
+      outline: none;
+      border-color: var(--linkedin-blue);
+      box-shadow: 0 0 0 3px var(--linkedin-light);
+    }
+    .btn {
+      padding: 0.65rem 1.1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background 0.2s, transform 0.05s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--linkedin-blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--linkedin-dark); }
+    .btn-secondary {
+      background: #eef1f4;
+      color: var(--text);
+    }
+    .btn-secondary:hover { background: #e0e5ea; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .btn-ghost:hover { background: #f0f2f5; color: var(--text); }
+    .msg {
+      margin-top: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .msg.error { background: #fef2f2; color: #b91c1c; }
+    .msg.success { background: #ecfdf5; color: #047857; }
+    table.scrapes { width: 100%; border-collapse: collapse; }
+    table.scrapes th, table.scrapes td {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    table.scrapes th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    table.scrapes tbody tr {
+      transition: background 0.15s;
+    }
+    table.scrapes tbody tr:hover { background: var(--linkedin-light); }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .actions .btn { padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+    .data-panel {
+      margin-top: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #fafbfc;
+    }
+    .data-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 0.9rem 1.25rem;
+      background: linear-gradient(135deg, var(--linkedin-blue) 0%, var(--linkedin-dark) 100%);
+      color: #fff;
+    }
+    .data-panel-header h3 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .data-table-wrap {
+      overflow-x: auto;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      min-width: 700px;
+    }
+    table.data-table th, table.data-table td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    table.data-table th {
+      background: #eef2f6;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.85rem;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    table.data-table tbody tr {
+      transition: background 0.1s;
+    }
+    table.data-table tbody tr:nth-child(even) { background: #fff; }
+    table.data-table tbody tr:hover { background: var(--linkedin-light); }
+    table.data-table td {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    table.data-table td[title] { cursor: help; }
+    .empty {
+      color: var(--text-muted);
+      padding: 1.5rem;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+    .loading { opacity: 0.7; pointer-events: none; }
+    .summary {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .help-box {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: #f8f9fb;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .help-box strong { color: var(--text); }
+    .help-box code { background: #e8ecf0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>LinkedIn Scraper</h1>
+
+  <!-- Nuevo scraping arriba -->
+  <div class="card">
+    <h2>Nuevo scraping</h2>
+    <p class="subtitle">Pega la URL de un perfil de LinkedIn y pulsa para iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
+    <div class="form-row">
+      <input type="url" id="profileUrl" placeholder="https://www.linkedin.com/in/nombre-perfil/" />
+      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar scraping</button>
+    </div>
+    <div id="scrapeMsg" class="msg" style="display:none;"></div>
+  </div>
+
+  <!-- Tus datos descargados -->
+  <div class="card">
+    <h2>Tus scrapeos</h2>
+    <p class="summary" id="scrapesSummary">Cargando…</p>
+    <div id="scrapesContainer">
+      <p class="empty" id="scrapesEmpty">Cargando…</p>
+      <table class="scrapes" id="scrapesTable" style="display:none;">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Registros</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="scrapesBody"></tbody>
+      </table>
+    </div>
+    <div class="data-panel" id="dataPanel" style="display:none;">
+      <div class="data-panel-header">
+        <h3 id="dataTitle">Datos del scrapeo</h3>
+        <button type="button" class="btn btn-ghost" id="btnCollapseData" style="color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.5);">
+          Ocultar datos
+        </button>
+      </div>
+      <div class="data-table-wrap">
+        <table class="data-table" id="dataTable">
+          <thead id="dataHead"></thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLS_ES = {
+      name: 'Nombre',
+      email: 'Email',
+      phone: 'Teléfono',
+      headline: 'Headline',
+      location: 'Ubicación',
+      company: 'Empresa',
+      education: 'Educación',
+      source_file: 'Archivo origen'
+    };
+
+    const profileUrl = document.getElementById('profileUrl');
+    const btnScrape = document.getElementById('btnScrape');
+    const scrapeMsg = document.getElementById('scrapeMsg');
+    const scrapesEmpty = document.getElementById('scrapesEmpty');
+    const scrapesSummary = document.getElementById('scrapesSummary');
+    const scrapesTable = document.getElementById('scrapesTable');
+    const scrapesBody = document.getElementById('scrapesBody');
+    const dataPanel = document.getElementById('dataPanel');
+    const dataTitle = document.getElementById('dataTitle');
+    const dataHead = document.getElementById('dataHead');
+    const dataBody = document.getElementById('dataBody');
+    const btnCollapseData = document.getElementById('btnCollapseData');
+
+    function showMsg(text, isError) {
+      scrapeMsg.textContent = text;
+      scrapeMsg.className = 'msg ' + (isError ? 'error' : 'success');
+      scrapeMsg.style.display = 'block';
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function collapseDataPanel() {
+      dataPanel.style.display = 'none';
+    }
+
+    btnCollapseData.addEventListener('click', collapseDataPanel);
+
+    async function loadScrapes() {
+      try {
+        const r = await fetch('/api/scrapes');
+        const items = await r.json();
+        const total = items.reduce((n, s) => n + s.count, 0);
+        scrapesSummary.textContent = items.length
+          ? items.length + ' scrapeo(s), ' + total + ' contacto(s) en total.'
+          : 'Aún no hay scrapeos. Usa el formulario de arriba cuando quieras descargar más perfiles.';
+        scrapesEmpty.style.display = items.length ? 'none' : 'block';
+        scrapesEmpty.textContent = items.length ? '' : 'No hay scrapeos. Inicia uno desde el formulario de arriba.';
+        if (items.length) {
+          scrapesTable.style.display = 'table';
+          scrapesBody.innerHTML = items.map(s => `
+            <tr>
+              <td>${escapeHtml(s.date)}</td>
+              <td>${s.count}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn btn-secondary" data-id="${escapeHtml(s.id)}" data-action="view">Ver datos</button>
+                  <a class="btn btn-secondary" href="/api/download/${encodeURIComponent(s.id)}?fmt=csv" download>CSV</a>
+                  <a class="btn btn-secondary" href="/api/download/${encodeURIComponent(s.id)}?fmt=excel" download>Excel</a>
+                  <a class="btn btn-secondary" href="/api/download/${encodeURIComponent(s.id)}?fmt=pdf" download>PDF</a>
+                </div>
+              </td>
+            </tr>
+          `).join('');
+          scrapesBody.querySelectorAll('[data-action="view"]').forEach(btn => {
+            btn.addEventListener('click', () => showScrapeData(btn.dataset.id));
+          });
+        } else {
+          scrapesTable.style.display = 'none';
+        }
+      } catch (e) {
+        scrapesSummary.textContent = '';
+        scrapesEmpty.textContent = 'Error al cargar: ' + e.message + '. ¿Está la app en marcha? (python app.py)';
+      }
+    }
+
+    async function showScrapeData(id) {
+      try {
+        const r = await fetch('/api/scrapes/' + encodeURIComponent(id) + '/data');
+        if (!r.ok) throw new Error(await r.text());
+        const rows = await r.json();
+        dataTitle.textContent = 'Datos: ' + id;
+        if (!rows.length) {
+          dataHead.innerHTML = '';
+          dataBody.innerHTML = '<tr><td colspan="8">Sin registros</td></tr>';
+        } else {
+          const cols = Object.keys(rows[0]);
+          const headers = cols.map(c => COLS_ES[c] || c);
+          dataHead.innerHTML = '<tr>' + headers.map(h => '<th>' + escapeHtml(h) + '</th>').join('') + '</tr>';
+          dataBody.innerHTML = rows.map(row => {
+            return '<tr>' + cols.map(c => {
+              const val = String(row[c] ?? '');
+              const title = val.length > 50 ? val : '';
+              return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+            }).join('') + '</tr>';
+          }).join('');
+        }
+        dataPanel.style.display = 'block';
+        btnCollapseData.textContent = 'Ocultar datos';
+        dataPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    btnScrape.addEventListener('click', async () => {
+      const url = profileUrl.value.trim();
+      if (!url || !url.includes('linkedin.com/in/')) {
+        showMsg('Introduce una URL de perfil de LinkedIn válida.', true);
+        return;
+      }
+      btnScrape.classList.add('loading');
+      scrapeMsg.style.display = 'none';
+      try {
+        const r = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          showMsg(data.error || 'Error al iniciar', true);
+          return;
+        }
+        showMsg(data.message || 'Scraping iniciado.', false);
+        profileUrl.value = '';
+      } catch (e) {
+        showMsg('Error: ' + e.message, true);
+      } finally {
+        btnScrape.classList.remove('loading');
+      }
+    });
+
+    loadScrapes();
+  </script>
+</body>
+</html>
