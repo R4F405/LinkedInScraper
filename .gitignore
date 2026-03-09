@@ -17,3 +17,5 @@ data/raw/*.html
 results_*.csv
 results_*.xlsx
 output/
+
+.DS_Store

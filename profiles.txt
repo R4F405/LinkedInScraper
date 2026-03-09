@@ -1,3 +1,0 @@
-# Añade aquí las URLs de LinkedIn que quieres scrapear (una por línea)
-# Las líneas que empiezan con # son ignoradas
-https://www.linkedin.com/search/results/people/?origin=MEMBER_PROFILE_CANNED_SEARCH&network=%5B%22F%22%2C%22S%22%5D&connectionOf=%5B%22ACoAADcqtyYBXYqzfLRO_tuYomkvhAJZtXGhHT0%22%5D
