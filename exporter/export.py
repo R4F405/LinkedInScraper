@@ -15,7 +15,7 @@ import pandas as pd
 
 from utils.config import OUTPUT_DIR
 
-FIELDNAMES = ["name", "email", "phone", "headline", "location", "company", "education", "source_file"]
+FIELDNAMES = ["name", "email", "phone", "location", "company"]
 
 
 # ---------------------------------------------------------------------------

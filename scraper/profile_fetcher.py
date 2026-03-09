@@ -9,6 +9,7 @@ extrae el email directamente con Selenium y guarda:
 """
 
 import json
+import random
 import time
 from pathlib import Path
 from selenium import webdriver
@@ -20,15 +21,42 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from utils.config import RAW_HTML_DIR
 
 
-def _scroll_to_load(driver: webdriver.Chrome, pauses: int = 3, pause_time: float = 1.5):
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    for _ in range(pauses):
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(pause_time)
+def _human_pause(min_s: float = 0.4, max_s: float = 1.2):
+    """Pausa aleatoria para simular tiempos de reacción humanos."""
+    time.sleep(random.uniform(min_s, max_s))
+
+
+def _scroll_to_load(driver: webdriver.Chrome):
+    """
+    Scroll humano: avanza en pequeños saltos aleatorios, con micro-pausas y
+    ocasionales retrocesos cortos para imitar la lectura real de la página.
+    """
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    current_pos = 0
+    last_height = total_height
+
+    while current_pos < last_height:
+        # Salto aleatorio: entre 200 y 600 px (una porción de viewport)
+        step = random.randint(200, 600)
+        current_pos = min(current_pos + step, last_height)
+        driver.execute_script(f"window.scrollTo(0, {current_pos});")
+        _human_pause(0.15, 0.55)
+
+        # Retroceso ocasional (30 % de probabilidad) para simular lectura
+        if random.random() < 0.3:
+            back = random.randint(30, 120)
+            driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
+            _human_pause(0.1, 0.35)
+            driver.execute_script(f"window.scrollTo(0, {current_pos});")
+            _human_pause(0.1, 0.3)
+
+        # Actualizar altura por si cargó contenido nuevo
         new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height == last_height:
-            break
-        last_height = new_height
+        if new_height > last_height:
+            last_height = new_height
+
+    # Pausa final al terminar de leer la página
+    _human_pause(0.8, 2.0)
 
 
 def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
@@ -51,14 +79,14 @@ def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
             )
             # Scroll hasta el elemento para que no quede tapado por la navbar
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-            time.sleep(0.5)
+            _human_pause(0.4, 1.0)
             # Usar JS click para evitar que la navbar lo intercepte
             driver.execute_script("arguments[0].click();", btn)
             # Esperar a que el modal aparezca
             WebDriverWait(driver, 8).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div.artdeco-modal"))
             )
-            time.sleep(1.5)
+            _human_pause(1.0, 2.5)
             opened = True
             break
         except (TimeoutException, NoSuchElementException):
@@ -85,23 +113,29 @@ def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
         except NoSuchElementException:
             continue
 
-    # Buscar el teléfono dentro del modal — buscar cualquier enlace tel:
-    phone_selectors = [
-        "div.artdeco-modal a[href^='tel:']",
-        "section.ci-phone a",
-        "a[href^='tel:']",
-    ]
+    # Buscar el teléfono dentro del modal:
+    # LinkedIn lo muestra en un <span> plain, NO en un <a href="tel:">
+    # Buscamos la sección cuyo <h3> contenga "tel" (Teléfono / Phone)
     phone = ""
-    for sel in phone_selectors:
-        try:
-            el = driver.find_element(By.CSS_SELECTOR, sel)
-            href = el.get_attribute("href") or ""
-            text = el.text.strip()
-            phone = text if text else href.replace("tel:", "").strip()
-            if phone:
-                break
-        except NoSuchElementException:
-            continue
+    try:
+        sections = driver.find_elements(By.CSS_SELECTOR, "section.pv-contact-info__contact-type")
+        for sec in sections:
+            try:
+                heading = sec.find_element(By.CSS_SELECTOR, "h3.pv-contact-info__header")
+                if "tel" in heading.text.lower() or "phone" in heading.text.lower():
+                    # El número está en el primer span sin la clase --light
+                    spans = sec.find_elements(By.CSS_SELECTOR, "ul span")
+                    for sp in spans:
+                        text = sp.text.strip()
+                        classes = sp.get_attribute("class") or ""
+                        if text and "t-black--light" not in classes:
+                            phone = text
+                            break
+                    break
+            except NoSuchElementException:
+                continue
+    except NoSuchElementException:
+        pass
 
     # Cerrar el modal
     try:
@@ -110,7 +144,7 @@ def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
             "button.artdeco-modal__dismiss, "
             "button[aria-label='Dismiss']"
         ).click()
-        time.sleep(0.5)
+        _human_pause(0.3, 0.8)
     except NoSuchElementException:
         pass
 
@@ -134,6 +168,8 @@ def fetch_profile(driver: webdriver.Chrome, url: str) -> Path:
     except TimeoutException:
         pass
 
+    # Pausa inicial: simula que el usuario lee el perfil antes de actuar
+    _human_pause(1.5, 4.0)
     _scroll_to_load(driver)
 
     # Extraer email y teléfono con Selenium mientras el modal está vivo
@@ -162,7 +198,9 @@ def fetch_all_profiles(driver: webdriver.Chrome, urls: list[str]) -> list[Path]:
             path = fetch_profile(driver, url)
             saved.append(path)
             print(f"  [scraper] guardado → {path.name}")
-            time.sleep(3)
+            delay = random.uniform(3, 10)
+            print(f"  [scraper] esperando {delay:.1f}s antes del siguiente perfil...")
+            time.sleep(delay)
         except Exception as e:
             print(f"  [scraper] ERROR en {url}: {e}")
     return saved
