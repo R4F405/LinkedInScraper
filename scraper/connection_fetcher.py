@@ -5,6 +5,7 @@ Dado un perfil de LinkedIn, hace clic en el enlace "X contactos" de la
 propia página del perfil, hace scroll hasta cargar todos y devuelve sus URLs.
 """
 
+import random
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,25 +14,52 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 
-def _scroll_current_page(driver: webdriver.Chrome, pause: float = 1.5):
-    """Hace scroll en la página actual para asegurarse de que carguen todas las tarjetas."""
+def _human_pause(min_s: float = 0.4, max_s: float = 1.2):
+    """Pausa aleatoria para simular tiempos de reacción humanos."""
+    time.sleep(random.uniform(min_s, max_s))
+
+
+def _scroll_current_page(driver: webdriver.Chrome):
+    """
+    Scroll humano en la lista de conexiones: avanza en pasos aleatorios
+    con micro-pausas y retrocesos ocasionales.
+    """
     last_count = 0
-    for _ in range(10):
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(pause)
+    total_height = driver.execute_script("return document.body.scrollHeight")
+    current_pos = 0
+    last_height = total_height
+
+    while current_pos < last_height:
+        step = random.randint(250, 550)
+        current_pos = min(current_pos + step, last_height)
+        driver.execute_script(f"window.scrollTo(0, {current_pos});")
+        _human_pause(0.2, 0.6)
+
+        if random.random() < 0.25:
+            back = random.randint(40, 150)
+            driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
+            _human_pause(0.1, 0.3)
+            driver.execute_script(f"window.scrollTo(0, {current_pos});")
+
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height > last_height:
+            last_height = new_height
+
         cards = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/']")
-        if len(cards) == last_count:
+        if len(cards) == last_count and current_pos >= last_height:
             break
         last_count = len(cards)
 
+    _human_pause(0.5, 1.5)
 
-def _collect_all_pages(driver: webdriver.Chrome, collected: set, pause: float = 2.5, max_pages: int = 20):
+
+def _collect_all_pages(driver: webdriver.Chrome, collected: set, max_pages: int = 20):
     """
     Recorre todas las páginas de resultados clicando 'Siguiente' / 'Next'.
     Acumula las URLs limpias en `collected`.
     """
     for page_num in range(1, max_pages + 1):
-        _scroll_current_page(driver, pause)
+        _scroll_current_page(driver)
         # Extraer perfiles de la página actual
         urls_page = _extract_profile_urls(driver)
         before = len(collected)
@@ -70,9 +98,9 @@ def _collect_all_pages(driver: webdriver.Chrome, collected: set, pause: float = 
             break
 
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", next_btn)
-        time.sleep(0.5)
+        _human_pause(0.4, 1.0)
         driver.execute_script("arguments[0].click();", next_btn)
-        time.sleep(pause)
+        _human_pause(1.5, 3.5)
 
         try:
             WebDriverWait(driver, 10).until(
@@ -121,7 +149,7 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
     if "/search/results/" in profile_url or "connectionOf=" in profile_url:
         print(f"  [connections] URL de resultados detectada, cargando directamente...")
         driver.get(profile_url)
-        time.sleep(3)
+        _human_pause(2.0, 4.5)
         try:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/in/')]"))
@@ -146,7 +174,7 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
         )
     except TimeoutException:
         pass
-    time.sleep(2)
+    _human_pause(1.5, 3.5)
 
     # Buscar el enlace "X contactos" en la página del perfil
     connection_link = None
@@ -177,10 +205,10 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
         return []
 
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", connection_link)
-    time.sleep(0.5)
+    _human_pause(0.4, 1.0)
     driver.execute_script("arguments[0].click();", connection_link)
     print(f"  [connections] Enlace 'contactos' clicado")
-    time.sleep(3)
+    _human_pause(2.5, 5.0)
 
     try:
         WebDriverWait(driver, 10).until(
