@@ -4,10 +4,14 @@ parser/profile_parser.py
 Lee archivos HTML guardados por Miquel en data/raw/ y extrae los campos
 del perfil de LinkedIn: nombre, email, headline, localización, empresa y estudios.
 
+El email se lee del JSON sidecar (<slug>.json) generado por profile_fetcher,
+ya que LinkedIn lo carga dinámicamente en un modal que no queda en el HTML estático.
+
 Uso standalone:
     from parser.profile_parser import parse_profile_file, parse_all_profiles
 """
 
+import json
 from pathlib import Path
 from bs4 import BeautifulSoup
 
@@ -38,6 +42,9 @@ _LOCATION_SELECTORS = [
 _EMAIL_SELECTORS = [
     "section.pv-contact-info__contact-type.ci-email a",
     ".ci-email .pv-contact-info__contact-link",
+    "section.ci-email a",
+    "div.pv-profile-section__section-info a[href^='mailto:']",
+    "a[href^='mailto:']",
 ]
 
 # Empresa: primera experiencia laboral (sección Experience)
@@ -142,10 +149,21 @@ def parse_profile_html(html: str) -> dict:
 def parse_profile_file(html_path: Path) -> dict:
     """
     Lee un archivo HTML de disco y lo parsea.
+    Si existe un JSON sidecar con el mismo nombre, usa su email.
     Añade la clave 'source_file' con el nombre del archivo.
     """
     html = html_path.read_text(encoding="utf-8")
     data = parse_profile_html(html)
+
+    # Leer email del JSON sidecar generado por profile_fetcher
+    json_path = html_path.with_suffix(".json")
+    if json_path.exists():
+        try:
+            sidecar = json.loads(json_path.read_text(encoding="utf-8"))
+            data["email"] = sidecar.get("email", "") or data["email"]
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     data["source_file"] = html_path.name
     return data
 
