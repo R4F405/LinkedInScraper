@@ -165,6 +165,11 @@ def login(driver: webdriver.Chrome, force_fresh: bool = False) -> bool:
                 return True
             else:
                 print("  ✗ Sesión expirada, procediendo con login...")
+                try:
+                    COOKIES_FILE.unlink(missing_ok=True)
+                    print("  Cookies antiguas eliminadas.")
+                except Exception:
+                    pass
         else:
             print("  No hay sesión guardada, procediendo con login...")
 
