@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  linkedin-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: linkedin-scraper
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - SCRAPER_HEADLESS=true
+    volumes:
+      - ./data:/app/data
+      - ./profiles.txt:/app/profiles.txt
+    stdin_open: true
+    tty: true

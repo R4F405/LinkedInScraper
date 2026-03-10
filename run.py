@@ -21,6 +21,7 @@ Nota para integración con GUI:
 
 import random
 import time
+import os
 
 from scraper.driver import create_driver, quit_driver
 from scraper.login import login, get_own_profile_url
@@ -224,7 +225,9 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    driver = create_driver(headless=False)
+    headless_env = os.getenv("SCRAPER_HEADLESS", "true").strip().lower()
+    headless = headless_env in ("1", "true", "yes", "on")
+    driver = create_driver(headless=headless)
     saved_paths = []
     owner_slug = ""
     
