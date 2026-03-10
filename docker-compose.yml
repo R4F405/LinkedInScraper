@@ -1,0 +1,16 @@
+services:
+  linkedin-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: linkedin-scraper
+    restart: on-failure:5
+    env_file:
+      - .env
+    environment:
+      - SCRAPER_HEADLESS=true
+    volumes:
+      - ./data:/app/data
+      - ./profiles.txt:/app/profiles.txt
+    stdin_open: true
+    tty: true

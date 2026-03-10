@@ -146,6 +146,24 @@
     }
     .msg.error { background: #fef2f2; color: #b91c1c; }
     .msg.success { background: #ecfdf5; color: #047857; }
+    body.dark .btn-secondary {
+      background: #374151;
+      color: #e5e7eb;
+    }
+    body.dark .btn-secondary:hover {
+      background: #4b5563;
+    }
+    body.dark .btn-refresh {
+      background: #4b5563;
+      color: #e5e7eb;
+    }
+    body.dark .btn-refresh:hover {
+      background: #6b7280;
+    }
+    body.dark .btn-ghost:hover {
+      background: #111827;
+      color: var(--text);
+    }
     .scrapes-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -169,6 +187,18 @@
     }
     table.scrapes tbody tr { transition: background 0.15s; }
     table.scrapes tbody tr:hover { background: var(--linkedin-light); }
+    .scrape-name-input {
+      width: 100%;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    body.dark .scrape-name-input {
+      background: #1f2933;
+      color: var(--text);
+      border-color: var(--border);
+    }
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .actions .btn { padding: 0.4rem 0.7rem; font-size: 0.85rem; }
     .data-panel {
@@ -176,7 +206,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       overflow: hidden;
-      background: #fafbfc;
+      background: var(--card);
     }
     .data-panel-header {
       display: flex;
@@ -397,6 +427,10 @@
     .contact-cards-grouped { display: block !important; }
     .contact-cards-grouped .company-group .contact-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     table.data-table tr.company-header td { background: #eef2f6; font-weight: 600; }
+    body.dark table.data-table th { background: #2d3748; }
+    body.dark table.data-table tbody tr:nth-child(even) { background: #1f2933; }
+    body.dark table.data-table tbody tr:hover { background: #374151; }
+    body.dark table.scrapes tbody tr:hover { background: #2d3748; }
     body.dark table.data-table tr.company-header td { background: var(--linkedin-light); }
     .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); }
     @media (max-width: 600px) { .charts-row { grid-template-columns: 1fr; } }
@@ -413,6 +447,18 @@
     body.dark .compare-section { background: var(--linkedin-light); }
     .compare-section select { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); margin: 0 0.25rem; }
     .compare-result { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-muted); }
+    .cards-row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      align-items: stretch;
+    }
+    @media (max-width: 900px) {
+      .cards-row {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -421,25 +467,38 @@
     <button type="button" class="btn btn-ghost btn-sm" id="btnDarkMode" title="Modo oscuro">🌙</button>
   </header>
 
-  <div class="card">
-    <h2>Descargar contactos</h2>
-    <p class="subtitle">Pega el enlace de un perfil de LinkedIn y pulsa Iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
-    <div class="form-row">
-      <input type="url" id="profileUrl" placeholder="https://www.linkedin.com/in/nombre-perfil/" />
-      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar</button>
-      <button type="button" class="btn btn-ghost" id="btnHowTo">¿Cómo se usa?</button>
+  <div class="cards-row">
+    <div class="card">
+      <h2>Scrapear un perfil (URL)</h2>
+      <p class="subtitle">Pega el enlace de un perfil de LinkedIn para descargar los contactos de esa persona. Se abrirá Chrome en una ventana de Terminal.</p>
+      <div class="form-row">
+        <input type="url" id="profileUrl" placeholder="https://www.linkedin.com/in/nombre-perfil/" />
+        <button type="button" class="btn btn-primary" id="btnScrape">Iniciar</button>
+        <button type="button" class="btn btn-ghost" id="btnHowTo">¿Cómo se usa?</button>
+      </div>
+      <div id="scrapeMsg" class="msg" style="display:none;"></div>
     </div>
-    <div id="scrapeMsg" class="msg" style="display:none;"></div>
+
+    <div class="card">
+      <h2>Scrapear mis contactos</h2>
+      <p class="subtitle">Inicia sesión con tu email y contraseña de LinkedIn. Se descargarán los contactos de tu perfil (quien inicia sesión). Se abrirá Chrome en una ventana de Terminal.</p>
+      <div class="form-row">
+        <input type="email" id="loginEmail" placeholder="Email de LinkedIn" autocomplete="email" />
+        <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="current-password" />
+        <button type="button" class="btn btn-primary" id="btnScrapeMyContacts">Iniciar con mi sesión</button>
+      </div>
+      <div id="scrapeMyContactsMsg" class="msg" style="display:none;"></div>
+    </div>
   </div>
 
   <div id="howToModal" class="modal-overlay" aria-hidden="true">
     <div class="modal">
       <h3>¿Cómo se usa?</h3>
       <ol>
-        <li>Pega el enlace de LinkedIn en el cuadro de arriba.</li>
-        <li>Pulsa <strong>Iniciar</strong>. Se abrirá una ventana con Chrome; puede tardar unos minutos.</li>
-        <li>Cuando termine, verás aquí abajo la lista de exportaciones con los contactos.</li>
-        <li>Pulsa <strong>Ver esta exportación</strong> para ver los datos y <strong>Descargar</strong> para guardar en Excel, PDF o CSV.</li>
+        <li><strong>Scrapear un perfil (URL):</strong> pega el enlace de un perfil de LinkedIn y pulsa Iniciar para descargar los contactos de esa persona.</li>
+        <li><strong>Scrapear mis contactos:</strong> introduce tu email y contraseña de LinkedIn y pulsa Iniciar con mi sesión para descargar tus propios contactos.</li>
+        <li>Se abrirá una ventana con Chrome; puede tardar varios minutos.</li>
+        <li>Cuando termine, verás aquí abajo la lista de exportaciones. Pulsa <strong>Ver esta exportación</strong> para ver los datos y <strong>Descargar</strong> para guardar en Excel, PDF o CSV.</li>
       </ol>
       <button type="button" class="btn btn-primary" id="btnCloseHowTo">Entendido</button>
     </div>
@@ -457,6 +516,7 @@
         <thead>
           <tr>
             <th>Fecha</th>
+            <th>Nombre</th>
             <th>Contactos</th>
             <th>Acciones</th>
           </tr>
@@ -506,11 +566,16 @@
         <div class="data-toolbar-right">
           <span id="downloadFilteredWrap" class="download-filtered-wrap" style="display:none;">
             <span class="download-filtered-label">Descargar solo lo que estoy viendo:</span>
+            <select id="filteredFields">
+              <option value="all">Todo</option>
+              <option value="email">Solo email</option>
+              <option value="phone">Solo teléfono</option>
+              <option value="email_phone">Email y teléfono</option>
+            </select>
             <button type="button" class="btn btn-export-excel btn-sm" id="btnDownloadFilteredExcel">Excel</button>
             <button type="button" class="btn btn-export-pdf btn-sm" id="btnDownloadFilteredPdf">PDF</button>
             <button type="button" class="btn btn-export-csv btn-sm" id="btnDownloadFilteredCsv">CSV</button>
           </span>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnToggleCols">Ver más columnas</button>
         </div>
         <div class="pagination-controls">
           <label>Mostrar</label>
@@ -552,6 +617,10 @@
     const profileUrl = document.getElementById('profileUrl');
     const btnScrape = document.getElementById('btnScrape');
     const scrapeMsg = document.getElementById('scrapeMsg');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const btnScrapeMyContacts = document.getElementById('btnScrapeMyContacts');
+    const scrapeMyContactsMsg = document.getElementById('scrapeMyContactsMsg');
     const scrapesEmpty = document.getElementById('scrapesEmpty');
     const scrapesSummary = document.getElementById('scrapesSummary');
     const scrapesTable = document.getElementById('scrapesTable');
@@ -568,7 +637,7 @@
     const paginationInfo = document.getElementById('paginationInfo');
     const dataEmptyMsg = document.getElementById('dataEmptyMsg');
     const downloadFilteredWrap = document.getElementById('downloadFilteredWrap');
-    const btnToggleCols = document.getElementById('btnToggleCols');
+    const filteredFields = document.getElementById('filteredFields');
     const dataViewTable = document.getElementById('dataViewTable');
     const dataViewCards = document.getElementById('dataViewCards');
     const contactCards = document.getElementById('contactCards');
@@ -584,6 +653,7 @@
 
     let scrapeList = [];
     let currentData = { rows: [], cols: [], id: null };
+    let currentVisibleRows = [];
     let sortCol = null;
     let sortDir = 1;
     let currentPage = 1;
@@ -715,11 +785,12 @@
       currentPage = Math.max(1, Math.min(currentPage, totalPages));
       const start = pageSize ? (currentPage - 1) * pageSize : 0;
       const slice = pageSize ? sorted.slice(start, start + pageSize) : sorted;
+      currentVisibleRows = slice;
 
       dataEmptyMsg.style.display = total === 0 ? 'block' : 'none';
       if (downloadFilteredWrap) {
-        const hasFilter = currentData.rows.length > 0 && (dataSearch.value.trim() || quickFilter || filtered.length < currentData.rows.length);
-        downloadFilteredWrap.style.display = hasFilter ? 'inline-flex' : 'none';
+        const hasRows = currentData.rows.length > 0;
+        downloadFilteredWrap.style.display = hasRows ? 'inline-flex' : 'none';
       }
 
       const colsToShow = getColsToShow();
@@ -815,17 +886,26 @@
       });
     });
 
-    if (btnToggleCols) {
-      btnToggleCols.addEventListener('click', () => {
-        showAllCols = !showAllCols;
-        btnToggleCols.textContent = showAllCols ? 'Ver menos columnas' : 'Ver más columnas';
-        renderDataTable();
-      });
-    }
-
     async function downloadFiltered(fmt) {
-      const rows = getFilteredRows();
+      let rows = currentVisibleRows && currentVisibleRows.length ? currentVisibleRows : getFilteredRows();
       if (!rows.length) return;
+      const mode = filteredFields ? filteredFields.value : 'all';
+      if (mode !== 'all') {
+        rows = rows
+          .map(row => {
+            const out = {};
+            if (mode === 'email' || mode === 'email_phone') out.email = (row.email || '').trim();
+            if (mode === 'phone' || mode === 'email_phone') out.phone = (row.phone || '').trim();
+            return out;
+          })
+          .filter(row => {
+            return Object.values(row).some(v => String(v || '').trim() !== '');
+          });
+        if (!rows.length) {
+          alert('No hay datos con email/teléfono para exportar con ese filtro.');
+          return;
+        }
+      }
       try {
         const r = await fetch('/api/export-filtered', {
           method: 'POST',
@@ -879,6 +959,43 @@
       });
     }
 
+    function getScrapeCustomName(id) {
+      return (localStorage.getItem('scrapeName_' + id) || '').trim();
+    }
+
+    /** Quita _YYYYMMDD_HHMMSS del id para mostrar solo el nombre (ej. results_20260309_152748 → results; ContactosJuan_... → Juan). */
+    function getShortId(id) {
+      const m = String(id).match(/^(.+)_\d{8}_\d{6}$/);
+      if (!m) return id;
+      let name = m[1];
+      if (name.startsWith('Contactos')) name = name.slice(9); // ContactosNombre → Nombre
+      return name || id;
+    }
+
+    function getScrapeDisplayName(item) {
+      const custom = getScrapeCustomName(item.id);
+      return custom || getShortId(item.id);
+    }
+
+    function refreshCompareOptions() {
+      if (!(compareSection && scrapeList.length >= 2)) {
+        if (compareSection) compareSection.style.display = 'none';
+        return;
+      }
+      compareSection.style.display = 'block';
+      compareA.innerHTML = scrapeList.map(s => (
+        '<option value="' + escapeHtml(s.id) + '">' +
+          escapeHtml(getScrapeDisplayName(s)) +
+        '</option>'
+      )).join('');
+      compareB.innerHTML = scrapeList.map(s => (
+        '<option value="' + escapeHtml(s.id) + '">' +
+          escapeHtml(getScrapeDisplayName(s)) +
+        '</option>'
+      )).join('');
+      if (compareB.options.length > 1) compareB.selectedIndex = 0;
+    }
+
     async function loadScrapes() {
       scrapesSummary.textContent = 'Cargando…';
       scrapesEmpty.style.display = 'block';
@@ -894,9 +1011,20 @@
         scrapesEmpty.textContent = items.length ? '' : 'No hay exportaciones. Inicia una desde el formulario de arriba.';
         if (items.length) {
           scrapesTable.style.display = 'table';
-          scrapesBody.innerHTML = items.map(s => `
+          scrapesBody.innerHTML = items.map(s => {
+            const customName = getScrapeCustomName(s.id);
+            const shortId = getShortId(s.id);
+            const displayName = customName || shortId;
+            return `
             <tr>
               <td>${escapeHtml(s.date)}</td>
+              <td>
+                <input type="text"
+                       class="scrape-name-input"
+                       data-id="${escapeHtml(s.id)}"
+                       placeholder="${escapeHtml(shortId)}"
+                       value="${escapeHtml(displayName)}" />
+              </td>
               <td>${s.count}</td>
               <td>
                 <div class="actions">
@@ -912,9 +1040,23 @@
                 </div>
               </td>
             </tr>
-          `).join('');
+            `;
+          }).join('');
           scrapesBody.querySelectorAll('[data-action="view"]').forEach(btn => {
             btn.addEventListener('click', () => showScrapeData(btn.dataset.id));
+          });
+          scrapesBody.querySelectorAll('.scrape-name-input').forEach(input => {
+            input.addEventListener('change', () => {
+              const id = input.dataset.id;
+              const value = input.value.trim();
+              if (value) {
+                localStorage.setItem('scrapeName_' + id, value);
+              } else {
+                localStorage.removeItem('scrapeName_' + id);
+                input.value = getShortId(id);
+              }
+              refreshCompareOptions();
+            });
           });
           scrapesBody.querySelectorAll('.dropdown-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -928,14 +1070,7 @@
           scrapesTable.style.display = 'none';
         }
         scrapeList = items;
-        if (compareSection && items.length >= 2) {
-          compareSection.style.display = 'block';
-          compareA.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
-          compareB.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
-          if (compareB.options.length > 1) compareB.selectedIndex = 0;
-        } else if (compareSection) {
-          compareSection.style.display = 'none';
-        }
+        refreshCompareOptions();
       } catch (e) {
         scrapesSummary.textContent = 'No se pudo cargar la lista.';
         scrapesEmpty.textContent = 'Error: no se pudo conectar. ¿Está la aplicación en marcha? Revisa que hayas ejecutado: python app.py';
@@ -968,11 +1103,6 @@
           c.classList.toggle('active', f === 'by_company' ? false : f === '');
         });
         document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'table'));
-        if (btnToggleCols) {
-          const hasExtra = currentData.cols.some(c => !COLS_VISIBLE.includes(c));
-          btnToggleCols.style.display = hasExtra ? 'inline-block' : 'none';
-          btnToggleCols.textContent = 'Ver más columnas';
-        }
 
         if (!rows.length) {
           dataHead.innerHTML = '';
@@ -981,7 +1111,7 @@
           paginationInfo.textContent = '';
           if (chartsRow) chartsRow.style.display = 'none';
         } else {
-          renderCharts(rows);
+          if (chartsRow) chartsRow.style.display = 'none';
           renderDataTable();
         }
         dataPanel.style.display = 'block';
@@ -990,6 +1120,12 @@
       } catch (e) {
         alert('Error al cargar los datos. Revisa que hayas iniciado sesión en Chrome si acabas de descargar.');
       }
+    }
+
+    function showMyContactsMsg(text, isError) {
+      scrapeMyContactsMsg.textContent = text;
+      scrapeMyContactsMsg.className = 'msg ' + (isError ? 'error' : 'success');
+      scrapeMyContactsMsg.style.display = 'block';
     }
 
     btnScrape.addEventListener('click', async () => {
@@ -1018,6 +1154,36 @@
         showMsg('Error: ' + e.message, true);
       } finally {
         btnScrape.classList.remove('loading');
+      }
+    });
+
+    btnScrapeMyContacts.addEventListener('click', async () => {
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
+      if (!email || !password) {
+        showMyContactsMsg('Indica tu email y contraseña de LinkedIn.', true);
+        return;
+      }
+      btnScrapeMyContacts.classList.add('loading');
+      scrapeMyContactsMsg.style.display = 'none';
+      showMyContactsMsg('Iniciando… Se abrirá Chrome para iniciar sesión y descargar tus contactos.', false);
+      try {
+        const r = await fetch('/api/scrape-my-contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          showMyContactsMsg(data.error || 'Error al iniciar.', true);
+          return;
+        }
+        showMyContactsMsg(data.message || 'Listo. Cuando termine, actualiza la lista de exportaciones.', false);
+        loginPassword.value = '';
+      } catch (e) {
+        showMyContactsMsg('Error: ' + e.message, true);
+      } finally {
+        btnScrapeMyContacts.classList.remove('loading');
       }
     });
 

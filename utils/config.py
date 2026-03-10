@@ -9,5 +9,9 @@ RAW_HTML_DIR = ROOT_DIR / "data" / "raw"
 # Carpeta de resultados
 OUTPUT_DIR = ROOT_DIR / "data" / "output"
 
+# Carpeta de sesiones (cookies persistentes para evitar login repetido)
+SESSION_DIR = ROOT_DIR / "data" / "sessions"
+
 RAW_HTML_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+SESSION_DIR.mkdir(parents=True, exist_ok=True)
