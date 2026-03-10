@@ -2,12 +2,16 @@
 scraper/login.py
 
 Autentica en LinkedIn usando credenciales del .env.
+Soporte de sesiones persistentes: guarda cookies tras login exitoso
+y las reutiliza en ejecuciones posteriores para evitar logins repetidos.
 """
 
 import re
 import time
 import random
 import os
+import pickle
+from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
@@ -16,11 +20,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from dotenv import load_dotenv
 
+from utils.config import SESSION_DIR
+
 load_dotenv()
 
 LINKEDIN_URL = "https://www.linkedin.com/login"
 HOME_URL = "https://www.linkedin.com/feed"
 LOGIN_MAX_WAIT_S = 120
+COOKIES_FILE = SESSION_DIR / "linkedin_session.pkl"
 
 
 def _wait_for_login_success(driver: webdriver.Chrome, max_wait_s: int = LOGIN_MAX_WAIT_S) -> bool:
@@ -54,6 +61,65 @@ def _wait_for_login_success(driver: webdriver.Chrome, max_wait_s: int = LOGIN_MA
     return False
 
 
+def _save_cookies(driver: webdriver.Chrome) -> None:
+    """Guarda las cookies de la sesión actual en disco."""
+    try:
+        with open(COOKIES_FILE, "wb") as f:
+            pickle.dump(driver.get_cookies(), f)
+        print(f"  ✓ Cookies guardadas en {COOKIES_FILE.name}")
+    except Exception as e:
+        print(f"  ⚠ No se pudieron guardar cookies: {e}")
+
+
+def _load_cookies(driver: webdriver.Chrome) -> bool:
+    """
+    Carga cookies guardadas previamente.
+    Returns True si existían y se cargaron, False si no.
+    """
+    if not COOKIES_FILE.exists():
+        return False
+    try:
+        driver.get("https://www.linkedin.com")  # Navegar primero al dominio
+        with open(COOKIES_FILE, "rb") as f:
+            cookies = pickle.load(f)
+        for cookie in cookies:
+            # Selenium 4+ requiere que 'sameSite' sea válido o None
+            if 'sameSite' in cookie and cookie['sameSite'] not in ['Strict', 'Lax', 'None']:
+                cookie['sameSite'] = 'None'
+            driver.add_cookie(cookie)
+        return True
+    except Exception as e:
+        print(f"  ⚠ Error cargando cookies: {e}")
+        # Eliminar archivo corrupto
+        try:
+            COOKIES_FILE.unlink()
+        except:
+            pass
+        return False
+
+
+def _check_session_active(driver: webdriver.Chrome) -> bool:
+    """
+    Verifica si la sesión actual es válida navegando al feed.
+    Returns True si está logueado, False si no.
+    """
+    try:
+        driver.get(HOME_URL)
+        time.sleep(random.uniform(2.0, 4.0))
+        current = driver.current_url.lower()
+        # Si nos redirige a login o checkpoint, la sesión no es válida
+        if "/login" in current or "/uas/login" in current:
+            return False
+        # Verificar presencia de elementos del feed
+        try:
+            driver.find_element(By.CSS_SELECTOR, "a[href*='/mynetwork/'], a[href*='/feed/']")
+            return True
+        except:
+            return False
+    except Exception:
+        return False
+
+
 def _type_like_human(element, text: str) -> None:
     """
     Escribe `text` carácter a carácter con velocidades humanas variables.
@@ -71,9 +137,14 @@ def _type_like_human(element, text: str) -> None:
             time.sleep(random.uniform(0.4, 1.2))
 
 
-def login(driver: webdriver.Chrome) -> bool:
+def login(driver: webdriver.Chrome, force_fresh: bool = False) -> bool:
     """
-    Navega a LinkedIn e inicia sesión con las credenciales del .env.
+    Inicia sesión en LinkedIn. Primero intenta restaurar sesión guardada.
+    Si no existe o ha expirado, hace login con credenciales.
+
+    Args:
+        driver: Instancia de Chrome WebDriver
+        force_fresh: Si True, ignora cookies guardadas y fuerza login fresco
 
     Returns:
         True si el login fue exitoso, False si falló.
@@ -84,6 +155,20 @@ def login(driver: webdriver.Chrome) -> bool:
     if not email or not password:
         raise ValueError("Faltan LINKEDIN_EMAIL o LINKEDIN_PASSWORD en el .env")
 
+    # Intentar restaurar sesión si no se fuerza login fresco
+    if not force_fresh:
+        print("  Intentando restaurar sesión guardada...")
+        if _load_cookies(driver):
+            print("  Cookies cargadas, verificando sesión...")
+            if _check_session_active(driver):
+                print("  ✓ Sesión restaurada correctamente (sin login)")
+                return True
+            else:
+                print("  ✗ Sesión expirada, procediendo con login...")
+        else:
+            print("  No hay sesión guardada, procediendo con login...")
+
+    # Login fresco
     driver.get(LINKEDIN_URL)
 
     try:
@@ -112,7 +197,13 @@ def login(driver: webdriver.Chrome) -> bool:
         driver.find_element(By.XPATH, '//button[@type="submit"]').click()
 
         # Dar ventana amplia para resolver CAPTCHA/manual check si aparece.
-        return _wait_for_login_success(driver)
+        login_success = _wait_for_login_success(driver)
+        
+        # Si el login fue exitoso, guardar cookies para próximas ejecuciones
+        if login_success:
+            _save_cookies(driver)
+        
+        return login_success
 
     except TimeoutException:
         return False
