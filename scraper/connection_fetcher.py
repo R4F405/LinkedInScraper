@@ -9,6 +9,7 @@ import random
 import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
@@ -19,10 +20,23 @@ def _human_pause(min_s: float = 0.4, max_s: float = 1.2):
     time.sleep(random.uniform(min_s, max_s))
 
 
+def _random_mouse_move(driver: webdriver.Chrome) -> None:
+    """Movimiento aleatorio del puntero para registrar actividad de ratón."""
+    try:
+        w = driver.execute_script("return window.innerWidth")  or 1280
+        h = driver.execute_script("return window.innerHeight") or  768
+        x = random.randint(60, max(61, w - 60))
+        y = random.randint(60, max(61, h - 60))
+        ActionChains(driver).move_by_offset(x, y).perform()
+        ActionChains(driver).move_by_offset(-x, -y).perform()
+    except Exception:
+        pass
+
+
 def _scroll_current_page(driver: webdriver.Chrome):
     """
     Scroll humano en la lista de conexiones: avanza en pasos aleatorios
-    con micro-pausas y retrocesos ocasionales.
+    con micro-pausas, retrocesos ocasionales y movimientos de ratón.
     """
     last_count = 0
     total_height = driver.execute_script("return document.body.scrollHeight")
@@ -40,6 +54,14 @@ def _scroll_current_page(driver: webdriver.Chrome):
             driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
             _human_pause(0.1, 0.3)
             driver.execute_script(f"window.scrollTo(0, {current_pos});")
+
+        # Movimiento de ratón ocasional (20 %)
+        if random.random() < 0.20:
+            _random_mouse_move(driver)
+
+        # Pausa larga de "lectura" ocasional (6 %)
+        if random.random() < 0.06:
+            _human_pause(2.0, 5.5)
 
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height > last_height:

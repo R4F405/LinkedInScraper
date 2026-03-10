@@ -14,9 +14,10 @@ import time
 from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, MoveTargetOutOfBoundsException
 
 from utils.config import RAW_HTML_DIR
 
@@ -26,10 +27,29 @@ def _human_pause(min_s: float = 0.4, max_s: float = 1.2):
     time.sleep(random.uniform(min_s, max_s))
 
 
+def _random_mouse_move(driver: webdriver.Chrome) -> None:
+    """
+    Mueve el puntero a una posición aleatoria de la ventana para que el
+    tracker del navegador registre movimiento de ratón como un humano.
+    Se captura cualquier excepción (elementos fuera de bounds, etc.).
+    """
+    try:
+        w = driver.execute_script("return window.innerWidth")  or 1280
+        h = driver.execute_script("return window.innerHeight") or  768
+        x = random.randint(80, max(81, w - 80))
+        y = random.randint(80, max(81, h - 80))
+        ActionChains(driver).move_by_offset(x, y).perform()
+        # Volver al origen para que no acumule offsets
+        ActionChains(driver).move_by_offset(-x, -y).perform()
+    except Exception:
+        pass
+
+
 def _scroll_to_load(driver: webdriver.Chrome):
     """
     Scroll humano: avanza en pequeños saltos aleatorios, con micro-pausas y
     ocasionales retrocesos cortos para imitar la lectura real de la página.
+    Añade movimientos de ratón esporádicos y pausas de "lectura" extra.
     """
     total_height = driver.execute_script("return document.body.scrollHeight")
     current_pos = 0
@@ -42,13 +62,21 @@ def _scroll_to_load(driver: webdriver.Chrome):
         driver.execute_script(f"window.scrollTo(0, {current_pos});")
         _human_pause(0.15, 0.55)
 
-        # Retroceso ocasional (30 % de probabilidad) para simular lectura
+        # Retroceso ocasional (30 %) para simular lectura
         if random.random() < 0.3:
             back = random.randint(30, 120)
             driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
             _human_pause(0.1, 0.35)
             driver.execute_script(f"window.scrollTo(0, {current_pos});")
             _human_pause(0.1, 0.3)
+
+        # Movimiento de ratón ocasional (20 %)
+        if random.random() < 0.20:
+            _random_mouse_move(driver)
+
+        # Pausa larga de "lectura" ocasional (8 %) — el usuario se detiene a leer
+        if random.random() < 0.08:
+            _human_pause(2.5, 7.0)
 
         # Actualizar altura por si cargó contenido nuevo
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -57,6 +85,7 @@ def _scroll_to_load(driver: webdriver.Chrome):
 
     # Pausa final al terminar de leer la página
     _human_pause(0.8, 2.0)
+
 
 
 def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
