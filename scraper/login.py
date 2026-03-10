@@ -20,6 +20,38 @@ load_dotenv()
 
 LINKEDIN_URL = "https://www.linkedin.com/login"
 HOME_URL = "https://www.linkedin.com/feed"
+LOGIN_MAX_WAIT_S = 120
+
+
+def _wait_for_login_success(driver: webdriver.Chrome, max_wait_s: int = LOGIN_MAX_WAIT_S) -> bool:
+    """
+    Espera hasta `max_wait_s` segundos para permitir resolver CAPTCHA/manual checks
+    antes de dar el login por fallido.
+    """
+    print(f"  Esperando verificación de login/CAPTCHA (hasta {max_wait_s}s)...")
+    end_time = time.time() + max_wait_s
+
+    while time.time() < end_time:
+        current = driver.current_url.lower()
+
+        # LinkedIn suele llevar al feed, y a veces al checkpoint de seguridad
+        # antes de redirigir al feed.
+        if "/feed" in current:
+            return True
+        if "/checkpoint" in current or "captcha" in current or "challenge" in current:
+            time.sleep(2)
+            continue
+
+        # Fallback DOM: detectar elementos comunes de sesión iniciada.
+        try:
+            driver.find_element(By.CSS_SELECTOR, "a[href*='/mynetwork/'], a[href*='/feed/']")
+            return True
+        except Exception:
+            pass
+
+        time.sleep(1.5)
+
+    return False
 
 
 def _type_like_human(element, text: str) -> None:
@@ -55,7 +87,7 @@ def login(driver: webdriver.Chrome) -> bool:
     driver.get(LINKEDIN_URL)
 
     try:
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 20)
 
         email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
         # Mover el ratón al campo antes de hacer clic (comportamiento humano)
@@ -79,9 +111,8 @@ def login(driver: webdriver.Chrome) -> bool:
         time.sleep(random.uniform(0.4, 1.0))
         driver.find_element(By.XPATH, '//button[@type="submit"]').click()
 
-        # Verificar que llegamos al feed
-        wait.until(EC.url_contains("/feed"))
-        return True
+        # Dar ventana amplia para resolver CAPTCHA/manual check si aparece.
+        return _wait_for_login_success(driver)
 
     except TimeoutException:
         return False
