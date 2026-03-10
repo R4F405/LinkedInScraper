@@ -2,15 +2,19 @@
 run.py — Orquestador principal.
 
 Flujo completo:
-  1. Lee las URLs semilla de profiles.txt
+  1. Pide al usuario la URL de perfil de LinkedIn por terminal
   2. Abre Chrome, inicia sesión en LinkedIn
-  3. Por cada URL semilla, obtiene todas sus conexiones
-  4. Navega cada perfil de conexión y guarda el HTML + email en data/raw/
+  3. Por cada URL semilla, entra al perfil y obtiene todas sus conexiones
+  4. Navega cada perfil de conexión y guarda el HTML + contacto en data/raw/
   5. Parsea los HTML
   6. Exporta CSV + Excel a data/output/
 
 Uso:
     python run.py
+
+Nota para integración con GUI:
+    Sustituye la función `get_seed_urls()` por la que proporcione la interfaz
+    gráfica. El resto del flujo no cambia.
 """
 
 from pathlib import Path
@@ -21,26 +25,50 @@ from scraper.connection_fetcher import get_connections
 from scraper.profile_fetcher import fetch_all_profiles
 from exporter.export import export_results
 
-PROFILES_FILE = Path("profiles.txt")
 
+# ---------------------------------------------------------------------------
+# Punto de entrada de datos  ← LA GUI REEMPLAZA SOLO ESTA FUNCIÓN
+# ---------------------------------------------------------------------------
 
-def load_urls() -> list[str]:
-    if not PROFILES_FILE.exists():
-        print(f"ERROR: no existe '{PROFILES_FILE}'.")
-        print("Crea el archivo con una URL de LinkedIn por línea.")
-        return []
-    urls = [
-        line.strip()
-        for line in PROFILES_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
-    print(f"Perfiles semilla: {len(urls)}")
+def get_seed_urls() -> list[str]:
+    """
+    Pide al usuario una o varias URLs de perfil de LinkedIn por terminal.
+    Devuelve la lista de URLs válidas introducidas.
+
+    Para integrar con GUI: reemplaza esta función por otra que devuelva
+    la misma lista[str] obtenida desde la interfaz gráfica.
+    """
+    print("\nIntroduce las URLs de perfil de LinkedIn a scrapear.")
+    print("  · Formato esperado: https://www.linkedin.com/in/<usuario>/")
+    print("  · Pulsa Enter sin escribir nada para terminar.\n")
+
+    urls: list[str] = []
+    while True:
+        raw = input(f"  URL {len(urls) + 1} (o Enter para continuar): ").strip()
+        if not raw:
+            break
+        if "linkedin.com/in/" not in raw:
+            print("    ⚠  No parece una URL de perfil de LinkedIn (/in/). Inténtalo de nuevo.")
+            continue
+        # Normalizar: asegurar https y trailing slash
+        if not raw.startswith("http"):
+            raw = "https://" + raw
+        if not raw.endswith("/"):
+            raw += "/"
+        urls.append(raw)
+        print(f"    ✓ Añadido: {raw}")
+
     return urls
 
 
+# ---------------------------------------------------------------------------
+# Flujo principal
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    seed_urls = load_urls()
+    seed_urls = get_seed_urls()
     if not seed_urls:
+        print("No se introdujo ninguna URL. Saliendo.")
         raise SystemExit(1)
 
     driver = create_driver(headless=False)
