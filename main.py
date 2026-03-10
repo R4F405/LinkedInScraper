@@ -5,6 +5,8 @@ Punto de entrada del scraper.
 Ejecutar: python main.py
 """
 
+import os
+
 from scraper.driver import create_driver, quit_driver
 from scraper.login import login
 from scraper.profile_fetcher import fetch_all_profiles
@@ -20,7 +22,9 @@ PROFILE_URLS = [
 
 
 def main():
-    driver = create_driver(headless=False)
+    headless_env = os.getenv("SCRAPER_HEADLESS", "true").strip().lower()
+    headless = headless_env in ("1", "true", "yes", "on")
+    driver = create_driver(headless=headless)
 
     try:
         print("🔐 Iniciando sesión...")

@@ -8,7 +8,6 @@ Opciones disponibles al ejecutar:
 
 Uso:
     python run.py
-    python run.py --url "https://www.linkedin.com/in/nombre-perfil/"   # modo no interactivo (p. ej. desde la vista web)
 
 Nota para integración con GUI:
     La función `choose_mode(driver, own_url)` devuelve un dict con:
@@ -20,10 +19,9 @@ Nota para integración con GUI:
     Reemplaza esa función con la lógica equivalente de la GUI.
 """
 
-import argparse
 import random
-import sys
 import time
+import os
 
 from scraper.driver import create_driver, quit_driver
 from scraper.login import login, get_own_profile_url
@@ -37,6 +35,21 @@ from utils.config import RAW_HTML_DIR
 _BREAK_EVERY = 300
 _BREAK_MIN_S = 15 * 60   # 15 min
 _BREAK_MAX_S = 35 * 60   # 35 min
+
+
+class CancelToMenu(Exception):
+    """Señal de cancelación para volver al menú principal."""
+
+
+def _prompt_cancel(context: str) -> None:
+    """
+    Checkpoint interactivo para permitir cancelar y volver al menú.
+    - Enter: continuar
+    - c: cancelar ejecución actual y volver al menú
+    """
+    ans = input(f"  [{context}] Enter=seguir | c=volver al menú: ").strip().lower()
+    if ans == "c":
+        raise CancelToMenu()
 
 
 # ---------------------------------------------------------------------------
@@ -93,8 +106,12 @@ def choose_mode(driver, own_url: str) -> dict:
         print( "  [1] Scrapear conexiones de un perfil concreto (introducir URL)")
     print(  "  [2] Introducir URLs de perfil manualmente")
     print(  "  [3] Scraping profundo: mis contactos + contactos de cada contacto")
+    print(  "  [q] Salir")
 
-    choice = input("\n  Elige opción (1/2/3): ").strip()
+    choice = input("\n  Elige opción (1/2/3/q): ").strip().lower()
+
+    if choice == "q":
+        return {"mode": 0, "own_url": own_url, "seed_urls": []}
 
     if choice == "3":
         if not own_url:
@@ -137,13 +154,6 @@ def _normalize(url: str) -> str:
     if not url.startswith("http"):
         url = "https://" + url
     return url.rstrip("/") + "/"
-
-
-def _parse_args():
-    """Parsea --url para invocación no interactiva desde la vista web."""
-    parser = argparse.ArgumentParser(description="Scraper de contactos de LinkedIn.")
-    parser.add_argument("--url", metavar="URL", help="URL de perfil a scrapear (modo 1: perfil + sus conexiones). Si se omite, se usa el menú interactivo.")
-    return parser.parse_args()
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +220,7 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 
     for idx, contact_url in enumerate(level1_urls, 1):
         print(f"\n── Contacto {idx}/{len(level1_urls)}: {contact_url}")
+        _prompt_cancel(f"contacto {idx}/{len(level1_urls)}")
 
         # a) Scrapear el perfil del contacto directo
         saved_lvl1 = _scrape_batch(driver, [contact_url], already_scraped, counter)
@@ -234,18 +245,12 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    args = _parse_args()
-    url_from_cli = (args.url or "").strip()
-    if url_from_cli and "linkedin.com/in/" not in url_from_cli:
-        print("URL inválida. Debe ser un perfil de LinkedIn (/in/).")
-        sys.exit(1)
-    if url_from_cli:
-        url_from_cli = _normalize(url_from_cli)
-
-    driver = create_driver(headless=False)
+    headless_env = os.getenv("SCRAPER_HEADLESS", "true").strip().lower()
+    headless = headless_env in ("1", "true", "yes", "on")
+    driver = create_driver(headless=headless)
     saved_paths = []
     owner_slug = ""
-
+    
     try:
         print("\n── Login ───────────────────────────────────────")
         if not login(driver):
@@ -253,26 +258,31 @@ if __name__ == "__main__":
             raise SystemExit(1)
         print("Login correcto ✓")
 
-        if url_from_cli:
-            # Modo no interactivo: una URL desde la vista web (equivalente a modo 1)
-            saved_paths, owner_slug = run_mode_1_2(driver, [url_from_cli])
+        print("  Detectando perfil propio…")
+        own_url = get_own_profile_url(driver)
+        if own_url:
+            print(f"  Perfil propio: {own_url}")
         else:
-            print("  Detectando perfil propio…")
-            own_url = get_own_profile_url(driver)
-            if own_url:
-                print(f"  Perfil propio: {own_url}")
-            else:
-                print("  (No se pudo detectar automáticamente)")
+            print("  (No se pudo detectar automáticamente)")
 
+        while True:
             config = choose_mode(driver, own_url)
 
-            if config["mode"] == 3:
-                saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
-            else:
-                if not config["seed_urls"]:
-                    print("No se introdujo ninguna URL. Saliendo.")
-                    raise SystemExit(1)
-                saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+            if config["mode"] == 0:
+                print("Saliendo.")
+                raise SystemExit(0)
+
+            try:
+                if config["mode"] == 3:
+                    saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
+                else:
+                    if not config["seed_urls"]:
+                        print("No se introdujo ninguna URL.")
+                        continue
+                    saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+                break
+            except CancelToMenu:
+                print("\n  Cancelado por usuario. Volviendo al menú principal...\n")
 
     finally:
         quit_driver(driver)
