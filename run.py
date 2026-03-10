@@ -140,8 +140,19 @@ def _normalize(url: str) -> str:
 # Modos de ejecución
 # ---------------------------------------------------------------------------
 
-def run_mode_1_2(driver, seed_urls: list[str]) -> list:
-    """Scrapea las conexiones de cada URL semilla (comportamiento original)."""
+def run_mode_1_2(driver, seed_urls: list[str]) -> tuple[list, str]:
+    """
+    Scrapea las conexiones de cada URL semilla (comportamiento original).
+    Returns: (saved_paths, owner_slug) donde owner_slug es el slug del primer seed.
+    """
+    print("\n── Scraping perfiles semilla ──────────────────")
+    counter = [0]
+    already_scraped = set()
+    
+    # Primero scrapear el perfil del owner (primera seed) para tener su nombre
+    owner_slug = seed_urls[0].rstrip("/").split("/")[-1] if seed_urls else ""
+    saved = _scrape_batch(driver, [seed_urls[0]], already_scraped, counter) if seed_urls else []
+    
     print("\n── Obteniendo conexiones ──────────────────────")
     all_urls: list[str] = []
     for seed in seed_urls:
@@ -151,33 +162,41 @@ def run_mode_1_2(driver, seed_urls: list[str]) -> list:
     print(f"Total conexiones únicas: {len(all_urls)}")
     if not all_urls:
         print("No se encontraron conexiones.")
-        return []
+        return (saved, owner_slug)
 
     print("\n── Scraping perfiles ──────────────────────────")
-    counter = [0]
-    saved = _scrape_batch(driver, all_urls, set(), counter)
-    return saved
+    saved.extend(_scrape_batch(driver, all_urls, already_scraped, counter))
+    return (saved, owner_slug)
 
 
-def run_mode_3(driver, own_url: str) -> list:
+def run_mode_3(driver, own_url: str) -> tuple[list, str]:
     """
     Scraping profundo:
-      1. Obtiene todas las conexiones directas del usuario (nivel 1).
-      2. Por cada contacto de nivel 1:
+      1. Scrapea el perfil del usuario propio primero.
+      2. Obtiene todas las conexiones directas del usuario (nivel 1).
+      3. Por cada contacto de nivel 1:
            a. Scrapea su propio perfil.
            b. Obtiene TODAS sus conexiones (nivel 2) y las scrapea también.
+    
+    Returns: (saved_paths, owner_slug)
     """
+    owner_slug = own_url.rstrip("/").split("/")[-1]
+    all_saved: list = []
+    already_scraped: set = set()
+    counter = [0]
+    
+    # Primero scrapear el perfil propio del owner
+    print("\n── Scraping perfil propio ─────────────────────")
+    saved_owner = _scrape_batch(driver, [own_url], already_scraped, counter)
+    all_saved.extend(saved_owner)
+    
     print("\n── [Modo 3] Obteniendo tus conexiones directas ─")
     level1_urls = get_connections(driver, own_url)
     level1_urls = list(dict.fromkeys(level1_urls))
     print(f"  Contactos directos encontrados: {len(level1_urls)}")
     if not level1_urls:
         print("  No se encontraron conexiones directas.")
-        return []
-
-    all_saved: list = []
-    already_scraped: set = set()
-    counter = [0]
+        return (all_saved, owner_slug)
 
     for idx, contact_url in enumerate(level1_urls, 1):
         print(f"\n── Contacto {idx}/{len(level1_urls)}: {contact_url}")
@@ -197,7 +216,7 @@ def run_mode_3(driver, own_url: str) -> list:
         except Exception as e:
             print(f"  ⚠  Error obteniendo conexiones de {contact_url}: {e}")
 
-    return all_saved
+    return (all_saved, owner_slug)
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +226,8 @@ def run_mode_3(driver, own_url: str) -> list:
 if __name__ == "__main__":
     driver = create_driver(headless=False)
     saved_paths = []
+    owner_slug = ""
+    
     try:
         print("\n── Login ───────────────────────────────────────")
         if not login(driver):
@@ -224,12 +245,12 @@ if __name__ == "__main__":
         config = choose_mode(driver, own_url)
 
         if config["mode"] == 3:
-            saved_paths = run_mode_3(driver, config["own_url"])
+            saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
         else:
             if not config["seed_urls"]:
                 print("No se introdujo ninguna URL. Saliendo.")
                 raise SystemExit(1)
-            saved_paths = run_mode_1_2(driver, config["seed_urls"])
+            saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
 
     finally:
         quit_driver(driver)
@@ -245,7 +266,25 @@ if __name__ == "__main__":
     for r in records:
         print(f"  · {r['name']:30s} | {r['company']:25s} | {r['location']}")
 
+    # Extraer el nombre del owner buscando el record que coincida con owner_slug
+    owner_name = ""
+    if owner_slug:
+        # Buscar en saved_paths el archivo que coincida con owner_slug
+        for path in saved_paths:
+            if path.stem == owner_slug:  # path.stem es el nombre sin extensión
+                # Parsear solo ese archivo para obtener el nombre
+                owner_record = parse_profile_file(path)
+                owner_name = owner_record.get("name", "")
+                break
+        
+        # Si no lo encontramos en saved_paths, usar el slug formateado
+        if not owner_name:
+            # Convertir slug a nombre legible: "miquel-font-barrot" → "MiquelFontBarrot"
+            owner_name = "".join(word.capitalize() for word in owner_slug.replace("-", " ").split())
+
     print("\n── Exportando resultados ───────────────────────")
-    paths = export_results(records, fmt="both")
+    if owner_name:
+        print(f"  Propietario: {owner_name}")
+    paths = export_results(records, fmt="both", owner_name=owner_name)
     for p in paths:
         print(f"  → {p}")
