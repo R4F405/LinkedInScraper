@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LinkedIn Scraper — Tus datos</title>
+  <title>Contactos de LinkedIn</title>
   <style>
     :root {
       --linkedin-blue: #0a66c2;
@@ -268,23 +268,83 @@
     .help-box strong { color: var(--text); }
     .help-box code { background: #e8ecf0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
     .data-empty-msg { padding: 1.5rem; text-align: center; color: var(--text-muted); }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      min-width: 160px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-hover);
+      z-index: 10;
+    }
+    .dropdown.open .dropdown-content { display: block; }
+    .dropdown-content a {
+      display: block;
+      padding: 0.6rem 1rem;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      margin: 2px;
+    }
+    .dropdown-content a:hover { background: var(--linkedin-light); }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal h3 { margin: 0 0 1rem 0; font-size: 1.1rem; }
+    .modal ol { margin: 0; padding-left: 1.25rem; line-height: 1.8; color: var(--text-muted); }
+    .modal .btn { margin-top: 1rem; }
   </style>
 </head>
 <body>
-  <h1>LinkedIn Scraper</h1>
+  <h1>Contactos de LinkedIn</h1>
 
   <div class="card">
-    <h2>Nuevo scraping</h2>
-    <p class="subtitle">Pega la URL de un perfil de LinkedIn y pulsa para iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
+    <h2>Descargar contactos</h2>
+    <p class="subtitle">Pega el enlace de un perfil de LinkedIn y pulsa Iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
     <div class="form-row">
       <input type="url" id="profileUrl" placeholder="https://www.linkedin.com/in/nombre-perfil/" />
-      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar scraping</button>
+      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar</button>
+      <button type="button" class="btn btn-ghost" id="btnHowTo">¿Cómo se usa?</button>
     </div>
     <div id="scrapeMsg" class="msg" style="display:none;"></div>
   </div>
 
+  <div id="howToModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal">
+      <h3>¿Cómo se usa?</h3>
+      <ol>
+        <li>Pega el enlace de LinkedIn en el cuadro de arriba.</li>
+        <li>Pulsa <strong>Iniciar</strong>. Se abrirá una ventana con Chrome; puede tardar unos minutos.</li>
+        <li>Cuando termine, verás aquí abajo la lista de exportaciones con los contactos.</li>
+        <li>Pulsa <strong>Ver esta exportación</strong> para ver los datos y <strong>Descargar</strong> para guardar en Excel, PDF o CSV.</li>
+      </ol>
+      <button type="button" class="btn btn-primary" id="btnCloseHowTo">Entendido</button>
+    </div>
+  </div>
+
   <div class="card">
-    <h2>Tus scrapeos</h2>
+    <h2>Tus exportaciones</h2>
     <div class="scrapes-toolbar">
       <p class="summary" id="scrapesSummary">Cargando…</p>
       <button type="button" class="btn btn-refresh" id="btnRefresh">Actualizar lista</button>
@@ -295,7 +355,7 @@
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>Registros</th>
+            <th>Contactos</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -305,15 +365,15 @@
     <div class="data-panel" id="dataPanel" style="display:none;">
       <div class="data-panel-header">
         <div>
-          <h3 id="dataTitle">Datos del scrapeo</h3>
+          <h3 id="dataTitle">Contactos de esta exportación</h3>
           <p class="data-panel-summary" id="dataPanelSummary"></p>
         </div>
         <button type="button" class="btn btn-ghost" id="btnCollapseData" style="color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.5);">
-          Ocultar datos
+          Ocultar
         </button>
       </div>
       <div class="data-toolbar">
-        <input type="text" class="search" id="dataSearch" placeholder="Buscar en la tabla (nombre, empresa, email…)" />
+        <input type="text" class="search" id="dataSearch" placeholder="Buscar por nombre, empresa o email" />
         <div class="pagination-controls">
           <label>Mostrar</label>
           <select id="pageSizeSelect">
@@ -331,7 +391,7 @@
           <tbody id="dataBody"></tbody>
         </table>
       </div>
-      <div class="data-empty-msg" id="dataEmptyMsg" style="display:none;">No hay filas que coincidan con la búsqueda.</div>
+      <div class="data-empty-msg" id="dataEmptyMsg" style="display:none;">No hay contactos que coincidan con la búsqueda.</div>
     </div>
   </div>
 
@@ -386,6 +446,14 @@
     function collapseDataPanel() {
       dataPanel.style.display = 'none';
     }
+
+    document.addEventListener('click', () => document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open')));
+    const howToModal = document.getElementById('howToModal');
+    const btnHowTo = document.getElementById('btnHowTo');
+    const btnCloseHowTo = document.getElementById('btnCloseHowTo');
+    if (btnHowTo) btnHowTo.addEventListener('click', () => { howToModal.classList.add('open'); howToModal.setAttribute('aria-hidden', 'false'); });
+    if (btnCloseHowTo) btnCloseHowTo.addEventListener('click', () => { howToModal.classList.remove('open'); howToModal.setAttribute('aria-hidden', 'true'); });
+    howToModal.addEventListener('click', (e) => { if (e.target === howToModal) { howToModal.classList.remove('open'); howToModal.setAttribute('aria-hidden', 'true'); } });
 
     btnCollapseData.addEventListener('click', collapseDataPanel);
     btnRefresh.addEventListener('click', () => { loadScrapes(); });
@@ -471,10 +539,10 @@
         const items = await r.json();
         const total = items.reduce((n, s) => n + s.count, 0);
         scrapesSummary.textContent = items.length
-          ? items.length + ' scrapeo(s), ' + total + ' contacto(s) en total.'
-          : 'Aún no hay scrapeos. Usa el formulario de arriba cuando quieras descargar más perfiles.';
+          ? items.length + ' exportación(es), ' + total + ' contacto(s) en total.'
+          : 'Aún no hay exportaciones. Usa el formulario de arriba para descargar contactos.';
         scrapesEmpty.style.display = items.length ? 'none' : 'block';
-        scrapesEmpty.textContent = items.length ? 'No hay scrapeos. Inicia uno desde el formulario de arriba.' : '';
+        scrapesEmpty.textContent = items.length ? '' : 'No hay exportaciones. Inicia una desde el formulario de arriba.';
         if (items.length) {
           scrapesTable.style.display = 'table';
           scrapesBody.innerHTML = items.map(s => `
@@ -483,10 +551,15 @@
               <td>${s.count}</td>
               <td>
                 <div class="actions">
-                  <button class="btn btn-secondary" data-id="${escapeHtml(s.id)}" data-action="view">Ver datos</button>
-                  <a class="btn btn-export-csv" href="/api/download/${encodeURIComponent(s.id)}?fmt=csv" download>CSV</a>
-                  <a class="btn btn-export-excel" href="/api/download/${encodeURIComponent(s.id)}?fmt=excel" download>Excel</a>
-                  <a class="btn btn-export-pdf" href="/api/download/${encodeURIComponent(s.id)}?fmt=pdf" download>PDF</a>
+                  <button class="btn btn-secondary" data-id="${escapeHtml(s.id)}" data-action="view">Ver esta exportación</button>
+                  <div class="dropdown" data-id="${escapeHtml(s.id)}">
+                    <button type="button" class="btn btn-export-excel dropdown-btn">Descargar ▾</button>
+                    <div class="dropdown-content">
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=excel" download>Como Excel</a>
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=pdf" download>Como PDF</a>
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=csv" download>Como CSV</a>
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -494,12 +567,20 @@
           scrapesBody.querySelectorAll('[data-action="view"]').forEach(btn => {
             btn.addEventListener('click', () => showScrapeData(btn.dataset.id));
           });
+          scrapesBody.querySelectorAll('.dropdown-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const drop = btn.closest('.dropdown');
+              document.querySelectorAll('.dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+              drop.classList.toggle('open');
+            });
+          });
         } else {
           scrapesTable.style.display = 'none';
         }
       } catch (e) {
         scrapesSummary.textContent = 'No se pudo cargar la lista.';
-        scrapesEmpty.textContent = 'Error: ' + e.message + '. ¿Está la app en marcha? Ejecuta en la terminal: python app.py';
+        scrapesEmpty.textContent = 'Error: no se pudo conectar. ¿Está la aplicación en marcha? Revisa que hayas ejecutado: python app.py';
       }
     }
 
@@ -509,14 +590,17 @@
         if (!r.ok) throw new Error(await r.text());
         const rows = await r.json();
         currentData = { rows, cols: rows.length ? Object.keys(rows[0]) : [], id };
-        sortCol = null;
+        sortCol = currentData.cols.includes('name') ? 'name' : (currentData.cols.includes('company') ? 'company' : (currentData.cols[0] || null));
         sortDir = 1;
         currentPage = 1;
         dataSearch.value = '';
 
-        dataTitle.textContent = 'Datos: ' + id;
+        dataTitle.textContent = 'Contactos de esta exportación';
         const withEmail = rows.filter(r => (r.email || '').trim()).length;
-        dataPanelSummary.textContent = rows.length + ' contacto(s)' + (rows.length ? ' — ' + withEmail + ' con email' : '') + '.';
+        const companies = new Set(rows.map(r => (r.company || '').trim()).filter(Boolean));
+        dataPanelSummary.textContent = rows.length
+          ? rows.length + ' contactos · ' + withEmail + ' con email · ' + companies.size + ' empresas'
+          : '';
 
         if (!rows.length) {
           dataHead.innerHTML = '';
@@ -527,21 +611,22 @@
           renderDataTable();
         }
         dataPanel.style.display = 'block';
-        btnCollapseData.textContent = 'Ocultar datos';
+        btnCollapseData.textContent = 'Ocultar';
         dataPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (e) {
-        alert('Error al cargar los datos: ' + e.message);
+        alert('Error al cargar los datos. Revisa que hayas iniciado sesión en Chrome si acabas de descargar.');
       }
     }
 
     btnScrape.addEventListener('click', async () => {
       const url = profileUrl.value.trim();
       if (!url || !url.includes('linkedin.com/in/')) {
-        showMsg('Introduce una URL de perfil de LinkedIn válida.', true);
+        showMsg('Introduce un enlace de perfil de LinkedIn válido.', true);
         return;
       }
       btnScrape.classList.add('loading');
       scrapeMsg.style.display = 'none';
+      showMsg('Descargando… puede tardar unos minutos. Se abrirá Chrome.', false);
       try {
         const r = await fetch('/api/scrape', {
           method: 'POST',
@@ -550,10 +635,10 @@
         });
         const data = await r.json();
         if (!r.ok) {
-          showMsg(data.error || 'Error al iniciar', true);
+          showMsg(data.error || 'Error al iniciar. Revisa que hayas iniciado sesión en Chrome.', true);
           return;
         }
-        showMsg(data.message || 'Scraping iniciado.', false);
+        showMsg('Listo. Se abrirá Chrome; cuando termine, actualiza la lista de exportaciones.', false);
         profileUrl.value = '';
       } catch (e) {
         showMsg('Error: ' + e.message, true);
