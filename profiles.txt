@@ -1,0 +1,3 @@
+# Añade aquí las URLs de LinkedIn que quieres scrapear (una por línea)
+# Las líneas que empiezan con # son ignoradas
+https://www.linkedin.com/in/borja-carreres-16a67936a/
