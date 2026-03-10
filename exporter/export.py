@@ -38,6 +38,7 @@ def export_results(
     records: list[dict],
     output_dir: Path = OUTPUT_DIR,
     fmt: str = "both",
+    owner_name: str = "",
 ) -> list[Path]:
     """
     Exporta los registros al directorio indicado.
@@ -46,6 +47,8 @@ def export_results(
         records:    Lista de dicts (output de parse_all_profiles).
         output_dir: Directorio destino (se crea si no existe).
         fmt:        "csv", "excel" o "both".
+        owner_name: Nombre del propietario del perfil para incluir en el nombre del archivo.
+                    Formato: ContactosOwnerName_YYYYMMDD_HHMMSS.csv
 
     Returns:
         Lista de los Path de los archivos creados.
@@ -56,15 +59,24 @@ def export_results(
     output_dir.mkdir(parents=True, exist_ok=True)
     df = to_dataframe(records)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Construir prefijo del nombre de archivo
+    if owner_name:
+        # Limpiar el nombre: quitar espacios y caracteres especiales, usar CamelCase
+        clean_name = "".join(word.capitalize() for word in owner_name.split())
+        prefix = f"Contactos{clean_name}"
+    else:
+        prefix = "results"
+    
     created: list[Path] = []
 
     if fmt in ("csv", "both"):
-        csv_path = output_dir / f"results_{timestamp}.csv"
+        csv_path = output_dir / f"{prefix}_{timestamp}.csv"
         df.to_csv(csv_path, index=False, encoding="utf-8")
         created.append(csv_path)
 
     if fmt in ("excel", "both"):
-        xlsx_path = output_dir / f"results_{timestamp}.xlsx"
+        xlsx_path = output_dir / f"{prefix}_{timestamp}.xlsx"
         df.to_excel(xlsx_path, index=False, engine="openpyxl")
         created.append(xlsx_path)
 
