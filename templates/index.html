@@ -207,6 +207,10 @@
       border: 1px solid var(--border);
       font-size: 0.9rem;
     }
+    .data-toolbar-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .download-filtered-wrap { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-muted); }
+    .download-filtered-label { white-space: nowrap; }
+    .btn-sm { padding: 0.35rem 0.6rem; font-size: 0.85rem; }
     .data-table-wrap {
       overflow-x: auto;
       max-height: 420px;
@@ -374,6 +378,15 @@
       </div>
       <div class="data-toolbar">
         <input type="text" class="search" id="dataSearch" placeholder="Buscar por nombre, empresa o email" />
+        <div class="data-toolbar-right">
+          <span id="downloadFilteredWrap" class="download-filtered-wrap" style="display:none;">
+            <span class="download-filtered-label">Descargar solo lo que estoy viendo:</span>
+            <button type="button" class="btn btn-export-excel btn-sm" id="btnDownloadFilteredExcel">Excel</button>
+            <button type="button" class="btn btn-export-pdf btn-sm" id="btnDownloadFilteredPdf">PDF</button>
+            <button type="button" class="btn btn-export-csv btn-sm" id="btnDownloadFilteredCsv">CSV</button>
+          </span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnToggleCols">Ver más columnas</button>
+        </div>
         <div class="pagination-controls">
           <label>Mostrar</label>
           <select id="pageSizeSelect">
@@ -406,6 +419,7 @@
       education: 'Educación',
       source_file: 'Archivo origen'
     };
+    const COLS_VISIBLE = ['name', 'company', 'email', 'location', 'phone'];
 
     const profileUrl = document.getElementById('profileUrl');
     const btnScrape = document.getElementById('btnScrape');
@@ -425,11 +439,14 @@
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     const paginationInfo = document.getElementById('paginationInfo');
     const dataEmptyMsg = document.getElementById('dataEmptyMsg');
+    const downloadFilteredWrap = document.getElementById('downloadFilteredWrap');
+    const btnToggleCols = document.getElementById('btnToggleCols');
 
     let currentData = { rows: [], cols: [], id: null };
     let sortCol = null;
     let sortDir = 1;
     let currentPage = 1;
+    let showAllCols = false;
 
     function showMsg(text, isError) {
       scrapeMsg.textContent = text;
@@ -481,6 +498,12 @@
       });
     }
 
+    function getColsToShow() {
+      if (showAllCols || !currentData.cols.length) return currentData.cols;
+      const visible = currentData.cols.filter(c => COLS_VISIBLE.includes(c));
+      return visible.length ? visible : currentData.cols;
+    }
+
     function renderDataTable() {
       const filtered = getFilteredRows();
       const sorted = getSortedRows(filtered);
@@ -492,9 +515,14 @@
       const slice = pageSize ? sorted.slice(start, start + pageSize) : sorted;
 
       dataEmptyMsg.style.display = total === 0 ? 'block' : 'none';
+      if (downloadFilteredWrap) {
+        const hasFilter = currentData.rows.length > 0 && (dataSearch.value.trim() || filtered.length < currentData.rows.length);
+        downloadFilteredWrap.style.display = hasFilter ? 'inline-flex' : 'none';
+      }
 
-      const headers = currentData.cols.map(c => COLS_ES[c] || c);
-      dataHead.innerHTML = '<tr>' + currentData.cols.map((c, i) => {
+      const colsToShow = getColsToShow();
+      const headers = colsToShow.map(c => COLS_ES[c] || c);
+      dataHead.innerHTML = '<tr>' + colsToShow.map((c, i) => {
         const label = headers[i];
         const cl = (c === sortCol) ? (sortDir === 1 ? 'sorted-asc' : 'sorted-desc') : '';
         return '<th class="' + cl + '" data-col="' + escapeHtml(c) + '">' + escapeHtml(label) + '</th>';
@@ -511,7 +539,7 @@
       });
 
       dataBody.innerHTML = slice.map(row => {
-        return '<tr>' + currentData.cols.map(c => {
+        return '<tr>' + colsToShow.map(c => {
           const val = String(row[c] ?? '');
           const title = val.length > 50 ? val : '';
           return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
@@ -529,6 +557,39 @@
 
     dataSearch.addEventListener('input', () => { currentPage = 1; renderDataTable(); });
     pageSizeSelect.addEventListener('change', () => { currentPage = 1; renderDataTable(); });
+
+    if (btnToggleCols) {
+      btnToggleCols.addEventListener('click', () => {
+        showAllCols = !showAllCols;
+        btnToggleCols.textContent = showAllCols ? 'Ver menos columnas' : 'Ver más columnas';
+        renderDataTable();
+      });
+    }
+
+    async function downloadFiltered(fmt) {
+      const rows = getFilteredRows();
+      if (!rows.length) return;
+      try {
+        const r = await fetch('/api/export-filtered', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ records: rows, fmt: fmt === 'xlsx' ? 'excel' : fmt })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const blob = await r.blob();
+        const name = r.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `contactos_filtrados.${fmt === 'excel' || fmt === 'xlsx' ? 'xlsx' : fmt}`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert('Error al descargar: ' + e.message);
+      }
+    }
+    document.getElementById('btnDownloadFilteredExcel')?.addEventListener('click', () => downloadFiltered('excel'));
+    document.getElementById('btnDownloadFilteredPdf')?.addEventListener('click', () => downloadFiltered('pdf'));
+    document.getElementById('btnDownloadFilteredCsv')?.addEventListener('click', () => downloadFiltered('csv'));
 
     async function loadScrapes() {
       scrapesSummary.textContent = 'Cargando…';
@@ -601,6 +662,12 @@
         dataPanelSummary.textContent = rows.length
           ? rows.length + ' contactos · ' + withEmail + ' con email · ' + companies.size + ' empresas'
           : '';
+        showAllCols = false;
+        if (btnToggleCols) {
+          const hasExtra = currentData.cols.some(c => !COLS_VISIBLE.includes(c));
+          btnToggleCols.style.display = hasExtra ? 'inline-block' : 'none';
+          btnToggleCols.textContent = 'Ver más columnas';
+        }
 
         if (!rows.length) {
           dataHead.innerHTML = '';

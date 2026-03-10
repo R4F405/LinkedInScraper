@@ -6,6 +6,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 
@@ -167,6 +169,43 @@ def api_download(scrape_id: str):
     pdf_path = OUTPUT_DIR / f"{scrape_id}.pdf"
     export_to_pdf(df, pdf_path)
     return send_file(pdf_path, as_attachment=True, download_name=f"{scrape_id}.pdf", mimetype="application/pdf")
+
+
+@app.route("/api/export-filtered", methods=["POST"])
+def api_export_filtered():
+    """Exporta solo los registros enviados en el body (ej. lo filtrado en la vista)."""
+    body = request.get_json() or {}
+    records = body.get("records", [])
+    fmt = (body.get("fmt") or "excel").lower()
+    if fmt not in ("csv", "excel", "xlsx", "pdf"):
+        return jsonify({"error": "Formato no válido"}), 400
+    if not records or not isinstance(records, list):
+        return jsonify({"error": "No hay datos para exportar"}), 400
+    df = pd.DataFrame(records)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    name = f"contactos_filtrados_{timestamp}"
+    if fmt == "csv":
+        buf = BytesIO()
+        df.to_csv(buf, index=False, encoding="utf-8")
+        buf.seek(0)
+        return send_file(buf, as_attachment=True, download_name=f"{name}.csv", mimetype="text/csv")
+    if fmt in ("excel", "xlsx"):
+        buf = BytesIO()
+        df.to_excel(buf, index=False, engine="openpyxl")
+        buf.seek(0)
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=f"{name}.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+        pdf_path = Path(f.name)
+    try:
+        export_to_pdf(df, pdf_path)
+        return send_file(pdf_path, as_attachment=True, download_name=f"{name}.pdf", mimetype="application/pdf")
+    finally:
+        pdf_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
