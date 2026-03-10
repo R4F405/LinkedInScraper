@@ -44,7 +44,10 @@ def get_seed_urls(driver=None) -> list[str]:
     """
     own_url = ""
     if driver is not None:
+        print("  Detectando perfil propio...")
         own_url = get_own_profile_url(driver)
+        if not own_url:
+            print("  (No se pudo detectar el perfil automáticamente, introduce la URL manualmente)")
 
     print("\n¿De qué perfiles quieres obtener las conexiones?")
     if own_url:
