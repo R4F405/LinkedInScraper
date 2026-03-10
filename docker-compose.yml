@@ -1,12 +1,10 @@
-version: "3.9"
-
 services:
   linkedin-scraper:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: linkedin-scraper
-    restart: unless-stopped
+    restart: on-failure:5
     env_file:
       - .env
     environment:
