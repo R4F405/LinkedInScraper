@@ -97,7 +97,7 @@ def api_scrape_data(scrape_id: str):
 
 @app.route("/api/scrape", methods=["POST"])
 def api_start_scrape():
-    """Inicia el scraping de una URL (perfil + sus contactos) vía run.py. En macOS abre una ventana de Terminal."""
+    """Inicia el scraping de una URL (perfil + sus contactos) vía run.py en modo no interactivo."""
     body = request.get_json() or {}
     url = (body.get("url") or "").strip()
     if not url or "linkedin.com/in/" not in url:
@@ -112,7 +112,10 @@ def api_start_scrape():
             ) as f:
                 f.write("#!/bin/bash\n")
                 f.write(f"cd {str(ROOT_DIR)!r}\n")
-                f.write(f"exec {sys.executable!r} run.py --url {url!r}\n")
+                f.write("export SCRAPER_NONINTERACTIVE=1\n")
+                f.write("export SCRAPER_MODE=url\n")
+                f.write(f"export SCRAPER_SEED_URL={url!r}\n")
+                f.write(f"exec {sys.executable!r} run.py\n")
                 f.write('echo ""\nread -p "Pulsa Enter para cerrar..."\n')
             os.chmod(f.name, 0o755)
             subprocess.Popen(
@@ -120,10 +123,14 @@ def api_start_scrape():
                 env=os.environ.copy(),
             )
         else:
+            env = os.environ.copy()
+            env["SCRAPER_NONINTERACTIVE"] = "1"
+            env["SCRAPER_MODE"] = "url"
+            env["SCRAPER_SEED_URL"] = url
             subprocess.Popen(
-                [sys.executable, str(script), "--url", url],
+                [sys.executable, str(script)],
                 cwd=str(ROOT_DIR),
-                env=os.environ.copy(),
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -138,55 +145,31 @@ def api_start_scrape():
 
 @app.route("/api/scrape-my-contacts", methods=["POST"])
 def api_scrape_my_contacts():
-    """Inicia el scraping de los contactos de quien inicia sesión (email y contraseña en el body)."""
+    """Inicia el scraping de los contactos de quien inicia sesión usando run.py en modo no interactivo."""
     body = request.get_json() or {}
     email = (body.get("email") or "").strip()
     password = (body.get("password") or "").strip()
     if not email or not password:
         return jsonify({"ok": False, "error": "Indica email y contraseña de LinkedIn."}), 400
-    script = ROOT_DIR / "run_my_contacts.py"
+    script = ROOT_DIR / "run.py"
     if not script.exists():
-        return jsonify({"ok": False, "error": "run_my_contacts.py no encontrado"}), 500
+        return jsonify({"ok": False, "error": "run.py no encontrado"}), 500
     try:
-        # Archivo temporal con credenciales (run_my_contacts.py lo lee y lo borra)
-        env_fd, env_path = tempfile.mkstemp(prefix="linkedin_creds_", suffix=".env", text=True)
-        with os.fdopen(env_fd, "w", encoding="utf-8") as f:
-            f.write(f"LINKEDIN_EMAIL={email}\n")
-            f.write(f"LINKEDIN_PASSWORD={password}\n")
-        try:
-            if sys.platform == "darwin":
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".command", delete=False, dir=str(ROOT_DIR)
-                ) as f:
-                    f.write("#!/bin/bash\n")
-                    f.write(f"cd {str(ROOT_DIR)!r}\n")
-                    f.write(f"exec {sys.executable!r} run_my_contacts.py --env-file {env_path!r}\n")
-                    f.write('echo ""\nread -p "Pulsa Enter para cerrar..."\n')
-                os.chmod(f.name, 0o755)
-                subprocess.Popen(
-                    ["open", "-a", "Terminal", f.name],
-                    env=os.environ.copy(),
-                )
-            else:
-                subprocess.Popen(
-                    [sys.executable, str(script), "--env-file", env_path],
-                    cwd=str(ROOT_DIR),
-                    env=os.environ.copy(),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-        except Exception:
-            try:
-                os.unlink(env_path)
-            except Exception:
-                pass
-            raise
+        env = os.environ.copy()
+        env["LINKEDIN_EMAIL"] = email
+        env["LINKEDIN_PASSWORD"] = password
+        env["SCRAPER_NONINTERACTIVE"] = "1"
+        env["SCRAPER_MODE"] = "my_contacts"
+        subprocess.Popen(
+            [sys.executable, str(script)],
+            cwd=str(ROOT_DIR),
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
-    msg = (
-        "Se ha abierto una ventana de Terminal. Chrome iniciará sesión con tus datos y descargará tus contactos. "
-        "Al terminar, actualiza la lista."
-    ) if sys.platform == "darwin" else "Scraping de tus contactos iniciado. Al terminar, actualiza la lista."
+    msg = "Scraping de tus contactos iniciado en segundo plano. Al terminar, actualiza la lista."
     return jsonify({"ok": True, "message": msg})
 
 

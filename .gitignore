@@ -12,11 +12,7 @@ __pycache__/
 # Scripts temporales (vista web)
 *.command
 
-# Datos
-data/raw/*.html
-data/sessions/
-results_*.csv
-results_*.xlsx
-output/
+# Datos (carpeta completa: raw, output, sessions)
+data/
 
 .DS_Store
