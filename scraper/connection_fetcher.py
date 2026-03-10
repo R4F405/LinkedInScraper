@@ -47,12 +47,12 @@ def _scroll_current_page(driver: webdriver.Chrome):
         step = random.randint(250, 550)
         current_pos = min(current_pos + step, last_height)
         driver.execute_script(f"window.scrollTo(0, {current_pos});")
-        _human_pause(0.2, 0.6)
+        _human_pause(0.1, 0.3)
 
         if random.random() < 0.25:
             back = random.randint(40, 150)
             driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
-            _human_pause(0.1, 0.3)
+            _human_pause(0.05, 0.15)
             driver.execute_script(f"window.scrollTo(0, {current_pos});")
 
         # Movimiento de ratón ocasional (20 %)
@@ -61,7 +61,7 @@ def _scroll_current_page(driver: webdriver.Chrome):
 
         # Pausa larga de "lectura" ocasional (6 %)
         if random.random() < 0.06:
-            _human_pause(2.0, 5.5)
+            _human_pause(0.5, 1.5)
 
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height > last_height:
@@ -72,7 +72,7 @@ def _scroll_current_page(driver: webdriver.Chrome):
             break
         last_count = len(cards)
 
-    _human_pause(0.5, 1.5)
+    _human_pause(0.3, 0.8)
 
 
 def _collect_all_pages(driver: webdriver.Chrome, collected: set, max_pages: int = 20):
@@ -120,9 +120,9 @@ def _collect_all_pages(driver: webdriver.Chrome, collected: set, max_pages: int 
             break
 
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", next_btn)
-        _human_pause(0.4, 1.0)
+        _human_pause(0.2, 0.5)
         driver.execute_script("arguments[0].click();", next_btn)
-        _human_pause(1.5, 3.5)
+        _human_pause(0.8, 1.8)
 
         try:
             WebDriverWait(driver, 10).until(
@@ -171,7 +171,7 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
     if "/search/results/" in profile_url or "connectionOf=" in profile_url:
         print(f"  [connections] URL de resultados detectada, cargando directamente...")
         driver.get(profile_url)
-        _human_pause(2.0, 4.5)
+        _human_pause(0.8, 1.5)
         try:
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/in/')]"))
@@ -196,7 +196,7 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
         )
     except TimeoutException:
         pass
-    _human_pause(1.5, 3.5)
+    _human_pause(0.8, 1.8)
 
     # Buscar el enlace "X contactos" en la página del perfil
     connection_link = None
@@ -227,10 +227,10 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
         return []
 
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", connection_link)
-    _human_pause(0.4, 1.0)
+    _human_pause(0.2, 0.5)
     driver.execute_script("arguments[0].click();", connection_link)
     print(f"  [connections] Enlace 'contactos' clicado")
-    _human_pause(2.5, 5.0)
+    _human_pause(1.0, 2.0)
 
     try:
         WebDriverWait(driver, 10).until(

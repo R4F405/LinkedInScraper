@@ -26,7 +26,7 @@ load_dotenv()
 
 LINKEDIN_URL = "https://www.linkedin.com/login"
 HOME_URL = "https://www.linkedin.com/feed"
-LOGIN_MAX_WAIT_S = 120
+LOGIN_MAX_WAIT_S = 45
 COOKIES_FILE = SESSION_DIR / "linkedin_session.pkl"
 
 
@@ -105,7 +105,7 @@ def _check_session_active(driver: webdriver.Chrome) -> bool:
     """
     try:
         driver.get(HOME_URL)
-        time.sleep(random.uniform(2.0, 4.0))
+        time.sleep(random.uniform(0.8, 1.5))
         current = driver.current_url.lower()
         # Si nos redirige a login o checkpoint, la sesión no es válida
         if "/login" in current or "/uas/login" in current:
@@ -128,13 +128,13 @@ def _type_like_human(element, text: str) -> None:
     """
     for ch in text:
         element.send_keys(ch)
-        # ~60-180 WPM depending on burst
-        delay = random.gauss(0.10, 0.045)          # media 100 ms, σ 45 ms
-        delay = max(0.03, min(delay, 0.45))         # clamp a [30 ms, 450 ms]
+        # Velocidad rápida pero variable
+        delay = random.gauss(0.05, 0.025)          # media 50 ms, σ 25 ms
+        delay = max(0.02, min(delay, 0.15))         # clamp a [20 ms, 150 ms]
         time.sleep(delay)
-        # 5 % de probabilidad de pausa larga "pensando"
-        if random.random() < 0.05:
-            time.sleep(random.uniform(0.4, 1.2))
+        # 3 % de probabilidad de pausa breve
+        if random.random() < 0.03:
+            time.sleep(random.uniform(0.2, 0.5))
 
 
 def login(driver: webdriver.Chrome, force_fresh: bool = False) -> bool:
@@ -177,23 +177,23 @@ def login(driver: webdriver.Chrome, force_fresh: bool = False) -> bool:
         email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
         # Mover el ratón al campo antes de hacer clic (comportamiento humano)
         ActionChains(driver).move_to_element(email_field).pause(
-            random.uniform(0.2, 0.6)
+            random.uniform(0.1, 0.3)
         ).click().perform()
-        time.sleep(random.uniform(0.3, 0.8))
+        time.sleep(random.uniform(0.1, 0.3))
         _type_like_human(email_field, email)
 
         # Pausa natural entre campos
-        time.sleep(random.uniform(0.5, 1.4))
+        time.sleep(random.uniform(0.2, 0.6))
 
         password_field = driver.find_element(By.ID, "password")
         ActionChains(driver).move_to_element(password_field).pause(
-            random.uniform(0.2, 0.5)
+            random.uniform(0.1, 0.3)
         ).click().perform()
-        time.sleep(random.uniform(0.2, 0.6))
+        time.sleep(random.uniform(0.1, 0.3))
         _type_like_human(password_field, password)
 
         # Pausa antes de enviar
-        time.sleep(random.uniform(0.4, 1.0))
+        time.sleep(random.uniform(0.2, 0.5))
         driver.find_element(By.XPATH, '//button[@type="submit"]').click()
 
         # Dar ventana amplia para resolver CAPTCHA/manual check si aparece.
