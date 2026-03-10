@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LinkedIn Scraper — Tus datos</title>
+  <title>Contactos de LinkedIn</title>
   <style>
     :root {
       --linkedin-blue: #0a66c2;
@@ -24,6 +24,16 @@
       --pdf-red: #dc2626;
       --pdf-red-hover: #b91c1c;
     }
+    body.dark {
+      --bg: #1a1d21;
+      --card: #24282e;
+      --text: #e4e6eb;
+      --text-muted: #b0b3b8;
+      --border: #3e4349;
+      --shadow: 0 2px 8px rgba(0,0,0,0.3);
+      --shadow-hover: 0 4px 14px rgba(0,0,0,0.4);
+      --linkedin-light: #2d3748;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -35,6 +45,12 @@
       max-width: 1100px;
       margin-left: auto;
       margin-right: auto;
+      transition: background 0.2s, color 0.2s;
+    }
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      .data-toolbar { flex-direction: column; align-items: stretch; }
+      .contact-cards { grid-template-columns: 1fr; }
     }
     h1 {
       color: var(--linkedin-dark);
@@ -207,6 +223,10 @@
       border: 1px solid var(--border);
       font-size: 0.9rem;
     }
+    .data-toolbar-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .download-filtered-wrap { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-muted); }
+    .download-filtered-label { white-space: nowrap; }
+    .btn-sm { padding: 0.35rem 0.6rem; font-size: 0.85rem; }
     .data-table-wrap {
       overflow-x: auto;
       max-height: 420px;
@@ -268,23 +288,165 @@
     .help-box strong { color: var(--text); }
     .help-box code { background: #e8ecf0; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
     .data-empty-msg { padding: 1.5rem; text-align: center; color: var(--text-muted); }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      min-width: 160px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-hover);
+      z-index: 10;
+    }
+    .dropdown.open .dropdown-content { display: block; }
+    .dropdown-content a {
+      display: block;
+      padding: 0.6rem 1rem;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      margin: 2px;
+    }
+    .dropdown-content a:hover { background: var(--linkedin-light); }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 420px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal h3 { margin: 0 0 1rem 0; font-size: 1.1rem; }
+    .modal ol { margin: 0; padding-left: 1.25rem; line-height: 1.8; color: var(--text-muted); }
+    .modal .btn { margin-top: 1rem; }
+    .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+    .chip {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .chip:hover { background: #eef1f4; color: var(--text); }
+    .chip.active { background: var(--linkedin-light); color: var(--linkedin-dark); border-color: var(--linkedin-blue); }
+    .view-toggle { display: flex; gap: 0.25rem; }
+    .view-toggle .btn { padding: 0.35rem 0.65rem; font-size: 0.85rem; }
+    .view-toggle .btn.active { background: var(--linkedin-blue); color: #fff; }
+    .contact-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .contact-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      transition: box-shadow 0.15s;
+    }
+    .contact-card:hover { box-shadow: var(--shadow-hover); }
+    .contact-card-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--linkedin-light);
+      color: var(--linkedin-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .contact-card-name { font-weight: 600; margin-bottom: 0.25rem; }
+    .contact-card-meta { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
+    .company-group { margin-bottom: 1.25rem; }
+    .company-group h4 {
+      margin: 0 0 0.5rem 0;
+      padding: 0.5rem 0.75rem;
+      background: #eef2f6;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .data-view-table { display: block; }
+    .data-view-cards { display: block; }
+    .data-view-table.hidden { display: none !important; }
+    .data-view-cards.hidden { display: none !important; }
+    .contact-cards-grouped { display: block !important; }
+    .contact-cards-grouped .company-group .contact-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    table.data-table tr.company-header td { background: #eef2f6; font-weight: 600; }
+    body.dark table.data-table tr.company-header td { background: var(--linkedin-light); }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); }
+    @media (max-width: 600px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-box h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-muted); }
+    .chart-bar-wrap { margin-bottom: 0.5rem; }
+    .chart-bar-label { font-size: 0.8rem; margin-bottom: 0.2rem; display: flex; justify-content: space-between; }
+    .chart-bar-bg { height: 20px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .chart-bar-fill { height: 100%; background: var(--linkedin-blue); border-radius: 4px; transition: width 0.3s; }
+    .chart-pie-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .chart-pie-legend { display: flex; gap: 1rem; font-size: 0.85rem; }
+    .chart-pie-legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .chart-pie-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .compare-section { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    body.dark .compare-section { background: var(--linkedin-light); }
+    .compare-section select { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); margin: 0 0.25rem; }
+    .compare-result { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-muted); }
   </style>
 </head>
 <body>
-  <h1>LinkedIn Scraper</h1>
+  <header style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem;">
+    <h1 style="margin:0;">Contactos de LinkedIn</h1>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnDarkMode" title="Modo oscuro">🌙</button>
+  </header>
 
   <div class="card">
-    <h2>Nuevo scraping</h2>
-    <p class="subtitle">Pega la URL de un perfil de LinkedIn y pulsa para iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
+    <h2>Descargar contactos</h2>
+    <p class="subtitle">Pega el enlace de un perfil de LinkedIn y pulsa Iniciar. Se abrirá Chrome en una ventana de Terminal.</p>
     <div class="form-row">
       <input type="url" id="profileUrl" placeholder="https://www.linkedin.com/in/nombre-perfil/" />
-      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar scraping</button>
+      <button type="button" class="btn btn-primary" id="btnScrape">Iniciar</button>
+      <button type="button" class="btn btn-ghost" id="btnHowTo">¿Cómo se usa?</button>
     </div>
     <div id="scrapeMsg" class="msg" style="display:none;"></div>
   </div>
 
+  <div id="howToModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal">
+      <h3>¿Cómo se usa?</h3>
+      <ol>
+        <li>Pega el enlace de LinkedIn en el cuadro de arriba.</li>
+        <li>Pulsa <strong>Iniciar</strong>. Se abrirá una ventana con Chrome; puede tardar unos minutos.</li>
+        <li>Cuando termine, verás aquí abajo la lista de exportaciones con los contactos.</li>
+        <li>Pulsa <strong>Ver esta exportación</strong> para ver los datos y <strong>Descargar</strong> para guardar en Excel, PDF o CSV.</li>
+      </ol>
+      <button type="button" class="btn btn-primary" id="btnCloseHowTo">Entendido</button>
+    </div>
+  </div>
+
   <div class="card">
-    <h2>Tus scrapeos</h2>
+    <h2>Tus exportaciones</h2>
     <div class="scrapes-toolbar">
       <p class="summary" id="scrapesSummary">Cargando…</p>
       <button type="button" class="btn btn-refresh" id="btnRefresh">Actualizar lista</button>
@@ -295,25 +457,61 @@
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>Registros</th>
+            <th>Contactos</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody id="scrapesBody"></tbody>
       </table>
     </div>
+    <div class="compare-section" id="compareSection" style="display:none;">
+      <strong>Comparar exportaciones:</strong>
+      <select id="compareA"></select>
+      <select id="compareB"></select>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnCompare">Comparar</button>
+      <div class="compare-result" id="compareResult"></div>
+    </div>
     <div class="data-panel" id="dataPanel" style="display:none;">
       <div class="data-panel-header">
         <div>
-          <h3 id="dataTitle">Datos del scrapeo</h3>
+          <h3 id="dataTitle">Contactos de esta exportación</h3>
           <p class="data-panel-summary" id="dataPanelSummary"></p>
         </div>
         <button type="button" class="btn btn-ghost" id="btnCollapseData" style="color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.5);">
-          Ocultar datos
+          Ocultar
         </button>
       </div>
+      <div class="charts-row" id="chartsRow" style="display:none;">
+        <div class="chart-box" id="chartByCompany">
+          <h4>Contactos por empresa</h4>
+          <div id="chartBarsContainer"></div>
+        </div>
+        <div class="chart-box" id="chartEmail">
+          <h4>Con email / Sin email</h4>
+          <div class="chart-pie-row" id="chartEmailContainer"></div>
+        </div>
+      </div>
       <div class="data-toolbar">
-        <input type="text" class="search" id="dataSearch" placeholder="Buscar en la tabla (nombre, empresa, email…)" />
+        <input type="text" class="search" id="dataSearch" placeholder="Buscar por nombre, empresa o email" />
+        <div class="chips" id="quickFilterChips">
+          <button type="button" class="chip active" data-filter="">Todos</button>
+          <button type="button" class="chip" data-filter="with_email">Con email</button>
+          <button type="button" class="chip" data-filter="no_email">Sin email</button>
+          <button type="button" class="chip" data-filter="by_company" id="chipByCompany">Por empresa</button>
+        </div>
+        <div class="view-toggle">
+          <button type="button" class="btn btn-secondary btn-sm view-tab active" data-view="table">Tabla</button>
+          <button type="button" class="btn btn-secondary btn-sm view-tab" data-view="cards">Tarjetas</button>
+        </div>
+        <div class="data-toolbar-right">
+          <span id="downloadFilteredWrap" class="download-filtered-wrap" style="display:none;">
+            <span class="download-filtered-label">Descargar solo lo que estoy viendo:</span>
+            <button type="button" class="btn btn-export-excel btn-sm" id="btnDownloadFilteredExcel">Excel</button>
+            <button type="button" class="btn btn-export-pdf btn-sm" id="btnDownloadFilteredPdf">PDF</button>
+            <button type="button" class="btn btn-export-csv btn-sm" id="btnDownloadFilteredCsv">CSV</button>
+          </span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnToggleCols">Ver más columnas</button>
+        </div>
         <div class="pagination-controls">
           <label>Mostrar</label>
           <select id="pageSizeSelect">
@@ -325,13 +523,16 @@
           <span id="paginationInfo"></span>
         </div>
       </div>
-      <div class="data-table-wrap">
+      <div class="data-view-table data-table-wrap" id="dataViewTable">
         <table class="data-table" id="dataTable">
           <thead id="dataHead"></thead>
           <tbody id="dataBody"></tbody>
         </table>
       </div>
-      <div class="data-empty-msg" id="dataEmptyMsg" style="display:none;">No hay filas que coincidan con la búsqueda.</div>
+      <div class="data-view-cards hidden" id="dataViewCards">
+        <div class="contact-cards" id="contactCards"></div>
+      </div>
+      <div class="data-empty-msg" id="dataEmptyMsg" style="display:none;">No hay contactos que coincidan con la búsqueda.</div>
     </div>
   </div>
 
@@ -346,6 +547,7 @@
       education: 'Educación',
       source_file: 'Archivo origen'
     };
+    const COLS_VISIBLE = ['name', 'company', 'email', 'location', 'phone'];
 
     const profileUrl = document.getElementById('profileUrl');
     const btnScrape = document.getElementById('btnScrape');
@@ -365,11 +567,30 @@
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     const paginationInfo = document.getElementById('paginationInfo');
     const dataEmptyMsg = document.getElementById('dataEmptyMsg');
+    const downloadFilteredWrap = document.getElementById('downloadFilteredWrap');
+    const btnToggleCols = document.getElementById('btnToggleCols');
+    const dataViewTable = document.getElementById('dataViewTable');
+    const dataViewCards = document.getElementById('dataViewCards');
+    const contactCards = document.getElementById('contactCards');
+    const chartsRow = document.getElementById('chartsRow');
+    const chartBarsContainer = document.getElementById('chartBarsContainer');
+    const chartEmailContainer = document.getElementById('chartEmailContainer');
+    const compareSection = document.getElementById('compareSection');
+    const compareA = document.getElementById('compareA');
+    const compareB = document.getElementById('compareB');
+    const compareResult = document.getElementById('compareResult');
+    const btnDarkMode = document.getElementById('btnDarkMode');
+    const btnCompare = document.getElementById('btnCompare');
 
+    let scrapeList = [];
     let currentData = { rows: [], cols: [], id: null };
     let sortCol = null;
     let sortDir = 1;
     let currentPage = 1;
+    let showAllCols = false;
+    let quickFilter = '';
+    let groupByCompany = false;
+    let viewMode = 'table';
 
     function showMsg(text, isError) {
       scrapeMsg.textContent = text;
@@ -387,18 +608,69 @@
       dataPanel.style.display = 'none';
     }
 
+    document.addEventListener('click', () => document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open')));
+    const howToModal = document.getElementById('howToModal');
+    const btnHowTo = document.getElementById('btnHowTo');
+    const btnCloseHowTo = document.getElementById('btnCloseHowTo');
+    if (btnHowTo) btnHowTo.addEventListener('click', () => { howToModal.classList.add('open'); howToModal.setAttribute('aria-hidden', 'false'); });
+    if (btnCloseHowTo) btnCloseHowTo.addEventListener('click', () => { howToModal.classList.remove('open'); howToModal.setAttribute('aria-hidden', 'true'); });
+    howToModal.addEventListener('click', (e) => { if (e.target === howToModal) { howToModal.classList.remove('open'); howToModal.setAttribute('aria-hidden', 'true'); } });
+
     btnCollapseData.addEventListener('click', collapseDataPanel);
     btnRefresh.addEventListener('click', () => { loadScrapes(); });
 
+    if (btnDarkMode) {
+      if (localStorage.getItem('dark') === '1') document.body.classList.add('dark');
+      btnDarkMode.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      btnDarkMode.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        localStorage.setItem('dark', document.body.classList.contains('dark') ? '1' : '0');
+        btnDarkMode.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      });
+    }
+
+    function renderCharts(rows) {
+      if (!chartsRow || !rows.length) return;
+      chartsRow.style.display = 'grid';
+      const byCompany = {};
+      rows.forEach(r => {
+        const c = (r.company || '').trim() || 'Sin empresa';
+        byCompany[c] = (byCompany[c] || 0) + 1;
+      });
+      const topCompanies = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const maxCount = Math.max(...topCompanies.map(([, n]) => n), 1);
+      chartBarsContainer.innerHTML = topCompanies.map(([name, count]) => {
+        const pct = (100 * count / maxCount).toFixed(0);
+        return '<div class="chart-bar-wrap"><div class="chart-bar-label"><span>' + escapeHtml(name) + '</span><span>' + count + '</span></div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:' + pct + '%"></div></div></div>';
+      }).join('') || '<p class="chart-bar-label">Sin datos</p>';
+
+      const withEmail = rows.filter(r => (r.email || '').trim()).length;
+      const noEmail = rows.length - withEmail;
+      chartEmailContainer.innerHTML = '<div class="chart-pie-legend"><span><span class="chart-pie-dot" style="background:var(--excel-green)"></span> Con email: ' + withEmail + '</span><span><span class="chart-pie-dot" style="background:var(--text-muted)"></span> Sin email: ' + noEmail + '</span></div><div class="chart-bar-bg" style="margin-top:0.5rem"><div class="chart-bar-fill" style="width:' + (rows.length ? (100 * withEmail / rows.length).toFixed(1) : 0) + '%;background:var(--excel-green)"></div></div>';
+    }
+
     function getFilteredRows() {
+      let rows = currentData.rows;
       const q = (dataSearch.value || '').trim().toLowerCase();
-      if (!q) return currentData.rows;
-      return currentData.rows.filter(row => {
-        return currentData.cols.some(col => {
+      if (q) {
+        rows = rows.filter(row => currentData.cols.some(col => {
           const v = String(row[col] ?? '');
           return v.toLowerCase().includes(q);
-        });
+        }));
+      }
+      if (quickFilter === 'with_email') rows = rows.filter(r => (r.email || '').trim());
+      if (quickFilter === 'no_email') rows = rows.filter(r => !(r.email || '').trim());
+      return rows;
+    }
+
+    function getGroupedByCompany(rows) {
+      const groups = {};
+      rows.forEach(row => {
+        const company = (row.company || '').trim() || 'Sin empresa';
+        if (!groups[company]) groups[company] = [];
+        groups[company].push(row);
       });
+      return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
     }
 
     function getSortedRows(rows) {
@@ -413,6 +685,27 @@
       });
     }
 
+    function getColsToShow() {
+      if (showAllCols || !currentData.cols.length) return currentData.cols;
+      const visible = currentData.cols.filter(c => COLS_VISIBLE.includes(c));
+      return visible.length ? visible : currentData.cols;
+    }
+
+    function renderContactCard(row) {
+      const name = String(row.name || '').trim() || '—';
+      const initial = name.charAt(0).toUpperCase();
+      const company = String(row.company || '').trim() || '—';
+      const email = String(row.email || '').trim() || '—';
+      const location = String(row.location || '').trim() || '—';
+      return '<div class="contact-card">' +
+        '<div class="contact-card-avatar">' + escapeHtml(initial) + '</div>' +
+        '<div class="contact-card-name">' + escapeHtml(name) + '</div>' +
+        '<div class="contact-card-meta">' + escapeHtml(company) + '</div>' +
+        (email !== '—' ? '<div class="contact-card-meta">' + escapeHtml(email) + '</div>' : '') +
+        (location !== '—' ? '<div class="contact-card-meta">' + escapeHtml(location) + '</div>' : '') +
+        '</div>';
+    }
+
     function renderDataTable() {
       const filtered = getFilteredRows();
       const sorted = getSortedRows(filtered);
@@ -424,31 +717,70 @@
       const slice = pageSize ? sorted.slice(start, start + pageSize) : sorted;
 
       dataEmptyMsg.style.display = total === 0 ? 'block' : 'none';
+      if (downloadFilteredWrap) {
+        const hasFilter = currentData.rows.length > 0 && (dataSearch.value.trim() || quickFilter || filtered.length < currentData.rows.length);
+        downloadFilteredWrap.style.display = hasFilter ? 'inline-flex' : 'none';
+      }
 
-      const headers = currentData.cols.map(c => COLS_ES[c] || c);
-      dataHead.innerHTML = '<tr>' + currentData.cols.map((c, i) => {
-        const label = headers[i];
-        const cl = (c === sortCol) ? (sortDir === 1 ? 'sorted-asc' : 'sorted-desc') : '';
-        return '<th class="' + cl + '" data-col="' + escapeHtml(c) + '">' + escapeHtml(label) + '</th>';
-      }).join('') + '</tr>';
+      const colsToShow = getColsToShow();
+      const headers = colsToShow.map(c => COLS_ES[c] || c);
 
-      dataHead.querySelectorAll('th').forEach(th => {
-        th.addEventListener('click', () => {
-          const col = th.dataset.col;
-          if (sortCol === col) sortDir = -sortDir;
-          else { sortCol = col; sortDir = 1; }
-          currentPage = 1;
-          renderDataTable();
-        });
-      });
-
-      dataBody.innerHTML = slice.map(row => {
-        return '<tr>' + currentData.cols.map(c => {
-          const val = String(row[c] ?? '');
-          const title = val.length > 50 ? val : '';
-          return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+      if (viewMode === 'table') {
+        dataViewTable.classList.remove('hidden');
+        dataViewCards.classList.add('hidden');
+        dataHead.innerHTML = '<tr>' + colsToShow.map((c, i) => {
+          const label = headers[i];
+          const cl = (c === sortCol) ? (sortDir === 1 ? 'sorted-asc' : 'sorted-desc') : '';
+          return '<th class="' + cl + '" data-col="' + escapeHtml(c) + '">' + escapeHtml(label) + '</th>';
         }).join('') + '</tr>';
-      }).join('');
+
+        dataHead.querySelectorAll('th').forEach(th => {
+          th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (sortCol === col) sortDir = -sortDir;
+            else { sortCol = col; sortDir = 1; }
+            currentPage = 1;
+            renderDataTable();
+          });
+        });
+
+        if (groupByCompany) {
+          const groups = getGroupedByCompany(slice);
+          let html = '';
+          groups.forEach(([companyName, groupRows]) => {
+            html += '<tr class="company-header"><td colspan="' + colsToShow.length + '"><strong>' + escapeHtml(companyName) + '</strong></td></tr>';
+            groupRows.forEach(row => {
+              html += '<tr>' + colsToShow.map(c => {
+                const val = String(row[c] ?? '');
+                const title = val.length > 50 ? val : '';
+                return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+              }).join('') + '</tr>';
+            });
+          });
+          dataBody.innerHTML = html;
+        } else {
+          dataBody.innerHTML = slice.map(row => {
+            return '<tr>' + colsToShow.map(c => {
+              const val = String(row[c] ?? '');
+              const title = val.length > 50 ? val : '';
+              return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+            }).join('') + '</tr>';
+          }).join('');
+        }
+      } else {
+        dataViewTable.classList.add('hidden');
+        dataViewCards.classList.remove('hidden');
+        if (groupByCompany) {
+          const groups = getGroupedByCompany(slice);
+          contactCards.innerHTML = groups.map(([companyName, groupRows]) => {
+            const cardsHtml = groupRows.map(row => renderContactCard(row)).join('');
+            return '<div class="company-group"><h4>' + escapeHtml(companyName) + '</h4><div class="contact-cards">' + cardsHtml + '</div></div>';
+          }).join('');
+        } else {
+          contactCards.innerHTML = slice.map(row => renderContactCard(row)).join('');
+        }
+        contactCards.classList.toggle('contact-cards-grouped', groupByCompany);
+      }
 
       if (pageSize && total > 0) {
         paginationInfo.textContent = (start + 1) + '–' + Math.min(start + pageSize, total) + ' de ' + total;
@@ -462,6 +794,91 @@
     dataSearch.addEventListener('input', () => { currentPage = 1; renderDataTable(); });
     pageSizeSelect.addEventListener('change', () => { currentPage = 1; renderDataTable(); });
 
+    document.querySelectorAll('#quickFilterChips .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const filter = chip.dataset.filter;
+        if (filter === 'by_company') groupByCompany = !groupByCompany;
+        else quickFilter = filter || '';
+        document.querySelectorAll('#quickFilterChips .chip').forEach(c => {
+          const f = c.dataset.filter;
+          c.classList.toggle('active', f === 'by_company' ? groupByCompany : quickFilter === f);
+        });
+        currentPage = 1;
+        renderDataTable();
+      });
+    });
+    document.querySelectorAll('.view-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        viewMode = tab.dataset.view;
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === viewMode));
+        renderDataTable();
+      });
+    });
+
+    if (btnToggleCols) {
+      btnToggleCols.addEventListener('click', () => {
+        showAllCols = !showAllCols;
+        btnToggleCols.textContent = showAllCols ? 'Ver menos columnas' : 'Ver más columnas';
+        renderDataTable();
+      });
+    }
+
+    async function downloadFiltered(fmt) {
+      const rows = getFilteredRows();
+      if (!rows.length) return;
+      try {
+        const r = await fetch('/api/export-filtered', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ records: rows, fmt: fmt === 'xlsx' ? 'excel' : fmt })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const blob = await r.blob();
+        const name = r.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `contactos_filtrados.${fmt === 'excel' || fmt === 'xlsx' ? 'xlsx' : fmt}`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert('Error al descargar: ' + e.message);
+      }
+    }
+    document.getElementById('btnDownloadFilteredExcel')?.addEventListener('click', () => downloadFiltered('excel'));
+    document.getElementById('btnDownloadFilteredPdf')?.addEventListener('click', () => downloadFiltered('pdf'));
+    document.getElementById('btnDownloadFilteredCsv')?.addEventListener('click', () => downloadFiltered('csv'));
+
+    if (btnCompare && compareA && compareB && compareResult) {
+      btnCompare.addEventListener('click', async () => {
+        const idA = compareA.value;
+        const idB = compareB.value;
+        if (!idA || !idB || idA === idB) {
+          compareResult.textContent = 'Elige dos exportaciones distintas.';
+          return;
+        }
+        compareResult.textContent = 'Cargando…';
+        try {
+          const [rA, rB] = await Promise.all([
+            fetch('/api/scrapes/' + encodeURIComponent(idA) + '/data').then(r => r.json()),
+            fetch('/api/scrapes/' + encodeURIComponent(idB) + '/data').then(r => r.json())
+          ]);
+          const key = row => (String(row.name || '').trim() + '|' + String(row.company || '').trim()).toLowerCase();
+          const sA = scrapeList.find(s => s.id === idA);
+          const sB = scrapeList.find(s => s.id === idB);
+          const aEsMasReciente = sA && sB && sA.date >= sB.date;
+          const reciente = aEsMasReciente ? rA : rB;
+          const anterior = aEsMasReciente ? rB : rA;
+          const setAnterior = new Set(anterior.map(key));
+          const setReciente = new Set(reciente.map(key));
+          const nuevos = reciente.filter(row => !setAnterior.has(key(row)));
+          const soloAnterior = anterior.filter(row => !setReciente.has(key(row)));
+          compareResult.innerHTML = '<strong>Contactos nuevos en la más reciente:</strong> ' + nuevos.length + '.<br><strong>Solo en la anterior:</strong> ' + soloAnterior.length + '.';
+        } catch (e) {
+          compareResult.textContent = 'Error: ' + e.message;
+        }
+      });
+    }
+
     async function loadScrapes() {
       scrapesSummary.textContent = 'Cargando…';
       scrapesEmpty.style.display = 'block';
@@ -471,10 +888,10 @@
         const items = await r.json();
         const total = items.reduce((n, s) => n + s.count, 0);
         scrapesSummary.textContent = items.length
-          ? items.length + ' scrapeo(s), ' + total + ' contacto(s) en total.'
-          : 'Aún no hay scrapeos. Usa el formulario de arriba cuando quieras descargar más perfiles.';
+          ? items.length + ' exportación(es), ' + total + ' contacto(s) en total.'
+          : 'Aún no hay exportaciones. Usa el formulario de arriba para descargar contactos.';
         scrapesEmpty.style.display = items.length ? 'none' : 'block';
-        scrapesEmpty.textContent = items.length ? 'No hay scrapeos. Inicia uno desde el formulario de arriba.' : '';
+        scrapesEmpty.textContent = items.length ? '' : 'No hay exportaciones. Inicia una desde el formulario de arriba.';
         if (items.length) {
           scrapesTable.style.display = 'table';
           scrapesBody.innerHTML = items.map(s => `
@@ -483,10 +900,15 @@
               <td>${s.count}</td>
               <td>
                 <div class="actions">
-                  <button class="btn btn-secondary" data-id="${escapeHtml(s.id)}" data-action="view">Ver datos</button>
-                  <a class="btn btn-export-csv" href="/api/download/${encodeURIComponent(s.id)}?fmt=csv" download>CSV</a>
-                  <a class="btn btn-export-excel" href="/api/download/${encodeURIComponent(s.id)}?fmt=excel" download>Excel</a>
-                  <a class="btn btn-export-pdf" href="/api/download/${encodeURIComponent(s.id)}?fmt=pdf" download>PDF</a>
+                  <button class="btn btn-secondary" data-id="${escapeHtml(s.id)}" data-action="view">Ver esta exportación</button>
+                  <div class="dropdown" data-id="${escapeHtml(s.id)}">
+                    <button type="button" class="btn btn-export-excel dropdown-btn">Descargar ▾</button>
+                    <div class="dropdown-content">
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=excel" download>Como Excel</a>
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=pdf" download>Como PDF</a>
+                      <a href="/api/download/${encodeURIComponent(s.id)}?fmt=csv" download>Como CSV</a>
+                    </div>
+                  </div>
                 </div>
               </td>
             </tr>
@@ -494,12 +916,29 @@
           scrapesBody.querySelectorAll('[data-action="view"]').forEach(btn => {
             btn.addEventListener('click', () => showScrapeData(btn.dataset.id));
           });
+          scrapesBody.querySelectorAll('.dropdown-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const drop = btn.closest('.dropdown');
+              document.querySelectorAll('.dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+              drop.classList.toggle('open');
+            });
+          });
         } else {
           scrapesTable.style.display = 'none';
         }
+        scrapeList = items;
+        if (compareSection && items.length >= 2) {
+          compareSection.style.display = 'block';
+          compareA.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
+          compareB.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
+          if (compareB.options.length > 1) compareB.selectedIndex = 0;
+        } else if (compareSection) {
+          compareSection.style.display = 'none';
+        }
       } catch (e) {
         scrapesSummary.textContent = 'No se pudo cargar la lista.';
-        scrapesEmpty.textContent = 'Error: ' + e.message + '. ¿Está la app en marcha? Ejecuta en la terminal: python app.py';
+        scrapesEmpty.textContent = 'Error: no se pudo conectar. ¿Está la aplicación en marcha? Revisa que hayas ejecutado: python app.py';
       }
     }
 
@@ -509,39 +948,59 @@
         if (!r.ok) throw new Error(await r.text());
         const rows = await r.json();
         currentData = { rows, cols: rows.length ? Object.keys(rows[0]) : [], id };
-        sortCol = null;
+        sortCol = currentData.cols.includes('name') ? 'name' : (currentData.cols.includes('company') ? 'company' : (currentData.cols[0] || null));
         sortDir = 1;
         currentPage = 1;
         dataSearch.value = '';
 
-        dataTitle.textContent = 'Datos: ' + id;
+        dataTitle.textContent = 'Contactos de esta exportación';
         const withEmail = rows.filter(r => (r.email || '').trim()).length;
-        dataPanelSummary.textContent = rows.length + ' contacto(s)' + (rows.length ? ' — ' + withEmail + ' con email' : '') + '.';
+        const companies = new Set(rows.map(r => (r.company || '').trim()).filter(Boolean));
+        dataPanelSummary.textContent = rows.length
+          ? rows.length + ' contactos · ' + withEmail + ' con email · ' + companies.size + ' empresas'
+          : '';
+        showAllCols = false;
+        quickFilter = '';
+        groupByCompany = false;
+        viewMode = 'table';
+        document.querySelectorAll('#quickFilterChips .chip').forEach(c => {
+          const f = c.dataset.filter;
+          c.classList.toggle('active', f === 'by_company' ? false : f === '');
+        });
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'table'));
+        if (btnToggleCols) {
+          const hasExtra = currentData.cols.some(c => !COLS_VISIBLE.includes(c));
+          btnToggleCols.style.display = hasExtra ? 'inline-block' : 'none';
+          btnToggleCols.textContent = 'Ver más columnas';
+        }
 
         if (!rows.length) {
           dataHead.innerHTML = '';
           dataBody.innerHTML = '';
           dataEmptyMsg.style.display = 'block';
           paginationInfo.textContent = '';
+          if (chartsRow) chartsRow.style.display = 'none';
         } else {
+          renderCharts(rows);
           renderDataTable();
         }
         dataPanel.style.display = 'block';
-        btnCollapseData.textContent = 'Ocultar datos';
+        btnCollapseData.textContent = 'Ocultar';
         dataPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } catch (e) {
-        alert('Error al cargar los datos: ' + e.message);
+        alert('Error al cargar los datos. Revisa que hayas iniciado sesión en Chrome si acabas de descargar.');
       }
     }
 
     btnScrape.addEventListener('click', async () => {
       const url = profileUrl.value.trim();
       if (!url || !url.includes('linkedin.com/in/')) {
-        showMsg('Introduce una URL de perfil de LinkedIn válida.', true);
+        showMsg('Introduce un enlace de perfil de LinkedIn válido.', true);
         return;
       }
       btnScrape.classList.add('loading');
       scrapeMsg.style.display = 'none';
+      showMsg('Descargando… puede tardar unos minutos. Se abrirá Chrome.', false);
       try {
         const r = await fetch('/api/scrape', {
           method: 'POST',
@@ -550,10 +1009,10 @@
         });
         const data = await r.json();
         if (!r.ok) {
-          showMsg(data.error || 'Error al iniciar', true);
+          showMsg(data.error || 'Error al iniciar. Revisa que hayas iniciado sesión en Chrome.', true);
           return;
         }
-        showMsg(data.message || 'Scraping iniciado.', false);
+        showMsg('Listo. Se abrirá Chrome; cuando termine, actualiza la lista de exportaciones.', false);
         profileUrl.value = '';
       } catch (e) {
         showMsg('Error: ' + e.message, true);
