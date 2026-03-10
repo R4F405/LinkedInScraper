@@ -6,9 +6,11 @@ Autentica en LinkedIn usando credenciales del .env.
 
 import re
 import time
+import random
 import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
@@ -18,6 +20,23 @@ load_dotenv()
 
 LINKEDIN_URL = "https://www.linkedin.com/login"
 HOME_URL = "https://www.linkedin.com/feed"
+
+
+def _type_like_human(element, text: str) -> None:
+    """
+    Escribe `text` carácter a carácter con velocidades humanas variables.
+    Incluye pausas largas ocasionales (como quien piensa mientras teclea) y
+    micro-errores de velocidad (rafagas rápidas seguidas de descansos).
+    """
+    for ch in text:
+        element.send_keys(ch)
+        # ~60-180 WPM depending on burst
+        delay = random.gauss(0.10, 0.045)          # media 100 ms, σ 45 ms
+        delay = max(0.03, min(delay, 0.45))         # clamp a [30 ms, 450 ms]
+        time.sleep(delay)
+        # 5 % de probabilidad de pausa larga "pensando"
+        if random.random() < 0.05:
+            time.sleep(random.uniform(0.4, 1.2))
 
 
 def login(driver: webdriver.Chrome) -> bool:
@@ -39,11 +58,25 @@ def login(driver: webdriver.Chrome) -> bool:
         wait = WebDriverWait(driver, 10)
 
         email_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
-        email_field.send_keys(email)
+        # Mover el ratón al campo antes de hacer clic (comportamiento humano)
+        ActionChains(driver).move_to_element(email_field).pause(
+            random.uniform(0.2, 0.6)
+        ).click().perform()
+        time.sleep(random.uniform(0.3, 0.8))
+        _type_like_human(email_field, email)
+
+        # Pausa natural entre campos
+        time.sleep(random.uniform(0.5, 1.4))
 
         password_field = driver.find_element(By.ID, "password")
-        password_field.send_keys(password)
+        ActionChains(driver).move_to_element(password_field).pause(
+            random.uniform(0.2, 0.5)
+        ).click().perform()
+        time.sleep(random.uniform(0.2, 0.6))
+        _type_like_human(password_field, password)
 
+        # Pausa antes de enviar
+        time.sleep(random.uniform(0.4, 1.0))
         driver.find_element(By.XPATH, '//button[@type="submit"]').click()
 
         # Verificar que llegamos al feed
