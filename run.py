@@ -265,24 +265,48 @@ if __name__ == "__main__":
         else:
             print("  (No se pudo detectar automáticamente)")
 
-        while True:
-            config = choose_mode(driver, own_url)
+        # Modo no interactivo para integración con la vista web
+        noninteractive = os.getenv("SCRAPER_NONINTERACTIVE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        scraper_mode = os.getenv("SCRAPER_MODE", "").strip().lower()
+        seed_url_env = os.getenv("SCRAPER_SEED_URL", "").strip()
 
-            if config["mode"] == 0:
-                print("Saliendo.")
-                raise SystemExit(0)
+        if noninteractive and scraper_mode in ("url", "my_contacts"):
+            if scraper_mode == "url":
+                if not seed_url_env or "linkedin.com/in/" not in seed_url_env:
+                    print("ERROR: SCRAPER_SEED_URL inválida. Debe ser una URL de perfil (/in/).")
+                    raise SystemExit(1)
+                seed_urls = [_normalize(seed_url_env)]
+                saved_paths, owner_slug = run_mode_1_2(driver, seed_urls)
+            else:  # my_contacts
+                if not own_url:
+                    print("ERROR: no se pudo detectar el perfil propio; no se pueden obtener tus contactos.")
+                    raise SystemExit(1)
+                saved_paths, owner_slug = run_mode_1_2(driver, [own_url])
+        else:
+            # Modo interactivo por terminal (flujo original)
+            while True:
+                config = choose_mode(driver, own_url)
 
-            try:
-                if config["mode"] == 3:
-                    saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
-                else:
-                    if not config["seed_urls"]:
-                        print("No se introdujo ninguna URL.")
-                        continue
-                    saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
-                break
-            except CancelToMenu:
-                print("\n  Cancelado por usuario. Volviendo al menú principal...\n")
+                if config["mode"] == 0:
+                    print("Saliendo.")
+                    raise SystemExit(0)
+
+                try:
+                    if config["mode"] == 3:
+                        saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
+                    else:
+                        if not config["seed_urls"]:
+                            print("No se introdujo ninguna URL.")
+                            continue
+                        saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+                    break
+                except CancelToMenu:
+                    print("\n  Cancelado por usuario. Volviendo al menú principal...\n")
 
     finally:
         quit_driver(driver)

@@ -33,122 +33,207 @@ def _random_mouse_move(driver: webdriver.Chrome) -> None:
         pass
 
 
+def _get_scrollable_container(driver: webdriver.Chrome):
+    """Busca un contenedor con overflow scroll (LinkedIn suele usar un div para la lista)."""
+    try:
+        containers = driver.find_elements(
+            By.CSS_SELECTOR,
+            "div[class*='scaffold-layout__main'], div[class*='ph5'][class*='overflow'], section[role='dialog'] .scroller, [class*='connections']"
+        )
+        for c in containers:
+            overflow = c.get_attribute("style") or ""
+            if "overflow" in overflow.lower() or "scroll" in overflow.lower():
+                return c
+            try:
+                oy = driver.execute_script("return arguments[0].style.overflowY || getComputedStyle(arguments[0]).overflowY", c)
+                if oy in ("auto", "scroll"):
+                    return c
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None
+
+
 def _scroll_current_page(driver: webdriver.Chrome):
     """
-    Scroll humano en la lista de conexiones: avanza en pasos aleatorios
-    con micro-pausas, retrocesos ocasionales y movimientos de ratón.
+    Scroll humano en la lista de conexiones. Prueba a scrollar el contenedor
+    interno de LinkedIn; si no, scroll de ventana. Varias pasadas hasta que
+    no aparezcan más tarjetas (carga bajo demanda).
     """
+    container = _get_scrollable_container(driver)
+    stable_rounds = 0
     last_count = 0
-    total_height = driver.execute_script("return document.body.scrollHeight")
-    current_pos = 0
-    last_height = total_height
+    max_stable = 2  # parar tras 2 pasadas sin nuevos contactos
 
-    while current_pos < last_height:
-        step = random.randint(250, 550)
-        current_pos = min(current_pos + step, last_height)
-        driver.execute_script(f"window.scrollTo(0, {current_pos});")
-        _human_pause(0.1, 0.3)
+    while stable_rounds < max_stable:
+        total_height = driver.execute_script(
+            "return arguments[0] ? arguments[0].scrollHeight : document.body.scrollHeight",
+            container
+        )
+        current_pos = 0
+        last_height = total_height
 
-        if random.random() < 0.25:
-            back = random.randint(40, 150)
-            driver.execute_script(f"window.scrollTo(0, {max(0, current_pos - back)});")
-            _human_pause(0.05, 0.15)
-            driver.execute_script(f"window.scrollTo(0, {current_pos});")
+        while current_pos < last_height:
+            step = random.randint(280, 500)
+            current_pos = min(current_pos + step, last_height)
+            if container:
+                try:
+                    driver.execute_script("arguments[0].scrollTop = arguments[1];", container, current_pos)
+                except Exception:
+                    driver.execute_script(f"window.scrollTo(0, {current_pos});")
+            else:
+                driver.execute_script(f"window.scrollTo(0, {current_pos});")
+            _human_pause(0.25, 0.7)
 
-        # Movimiento de ratón ocasional (20 %)
-        if random.random() < 0.20:
-            _random_mouse_move(driver)
+            if random.random() < 0.2:
+                back = random.randint(50, 120)
+                current_pos = max(0, current_pos - back)
+                if container:
+                    try:
+                        driver.execute_script("arguments[0].scrollTop = arguments[1];", container, current_pos)
+                    except Exception:
+                        pass
+                _human_pause(0.1, 0.3)
 
-        # Pausa larga de "lectura" ocasional (6 %)
-        if random.random() < 0.06:
-            _human_pause(0.5, 1.5)
+            new_height = driver.execute_script(
+                "return arguments[0] ? arguments[0].scrollHeight : document.body.scrollHeight",
+                container
+            )
+            if new_height > last_height:
+                last_height = new_height
+            # Pausa larga de "lectura" ocasional (6 %)
+            if random.random() < 0.06:
+                _human_pause(0.5, 1.5)
 
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        if new_height > last_height:
-            last_height = new_height
+            cards = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/']")
+            if len(cards) == last_count and current_pos >= last_height:
+                break
+            last_count = len(cards)
 
-        cards = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/']")
-        if len(cards) == last_count and current_pos >= last_height:
-            break
-        last_count = len(cards)
+        # Esperar carga bajo demanda
+        time.sleep(random.uniform(1.2, 2.5))
+        cards_now = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/']")
+        if len(cards_now) == last_count:
+            stable_rounds += 1
+        else:
+            stable_rounds = 0
+            last_count = len(cards_now)
 
-    _human_pause(0.3, 0.8)
+    _human_pause(0.5, 1.2)
 
 
 def _collect_all_pages(driver: webdriver.Chrome, collected: set, max_pages: int = 20):
     """
     Recorre todas las páginas de resultados clicando 'Siguiente' / 'Next'.
-    Acumula las URLs limpias en `collected`.
+    Acumula las URLs limpias en `collected`. Extrae solo del contenedor de la lista
+    para no duplicar enlaces del menú.
     """
+    list_container = None
     for page_num in range(1, max_pages + 1):
         _scroll_current_page(driver)
-        # Extraer perfiles de la página actual
-        urls_page = _extract_profile_urls(driver)
+        list_container = _find_connections_list_container(driver) or list_container
+        urls_page = _extract_profile_urls(driver, root=list_container)
         before = len(collected)
         collected.update(urls_page)
-        print(f"    página {page_num}: {len(urls_page)} tarjetas, {len(collected) - before} nuevas ({len(collected)} total)")
+        new_this_page = len(collected) - before
+        print(f"    página {page_num}: {len(urls_page)} tarjetas, {new_this_page} nuevas ({len(collected)} total)")
 
-        # Buscar botón "Siguiente" / "Next"
+        if new_this_page == 0 and page_num > 1:
+            print(f"    Misma lista que la página anterior; puede que no haya más páginas reales.")
+            break
+
         next_btn = None
-        for label in ["Siguiente", "Next"]:
+        for label in ["Siguiente", "Next", "See next", "Ver más", "See more", "Seguent", "Weiter"]:
             try:
-                next_btn = driver.find_element(
+                candidates = driver.find_elements(
                     By.XPATH,
-                    f"//button[@aria-label='{label}'] | //a[@aria-label='{label}']"
+                    f"//button[@aria-label='{label}'] | //a[@aria-label='{label}'] | "
+                    f"//button[contains(@aria-label, '{label}')] | //a[contains(@aria-label, '{label}')]"
                 )
-                if next_btn.is_enabled():
+                for btn in candidates:
+                    if btn.is_displayed() and btn.is_enabled():
+                        next_btn = btn
+                        break
+                if next_btn:
                     break
-                else:
-                    next_btn = None
-            except NoSuchElementException:
+            except Exception:
                 pass
 
         if not next_btn:
-            # También intentar por texto visible
             try:
-                next_btn = driver.find_element(
-                    By.XPATH,
-                    "//button[contains(normalize-space(), 'Siguiente') or contains(normalize-space(), 'Next')]"
-                )
-                if not next_btn.is_enabled():
-                    next_btn = None
-            except NoSuchElementException:
+                for xpath in [
+                    "//button[contains(normalize-space(), 'Siguiente') or contains(normalize-space(), 'Next') or contains(normalize-space(), 'Ver más')]",
+                    "//a[contains(normalize-space(), 'Siguiente') or contains(normalize-space(), 'Next')]",
+                    "//button[@type='button']//span[contains(text(), 'Next') or contains(text(), 'Siguiente')]",
+                    "//li[contains(@class, 'pagination')]//button[not(@disabled)]",
+                ]:
+                    candidates = driver.find_elements(By.XPATH, xpath)
+                    for btn in candidates:
+                        if btn.is_displayed() and btn.is_enabled():
+                            next_btn = btn
+                            break
+                    if next_btn:
+                        break
+            except Exception:
                 pass
 
         if not next_btn:
-            print(f"    No hay más páginas.")
+            print(f"    No hay más páginas (total recogido: {len(collected)}).")
             break
 
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", next_btn)
-        _human_pause(0.2, 0.5)
+        _human_pause(0.5, 1.0)
         driver.execute_script("arguments[0].click();", next_btn)
-        _human_pause(0.8, 1.8)
+        time.sleep(random.uniform(3.0, 5.5))
 
         try:
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 12).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/in/')]"))
             )
         except TimeoutException:
             break
+        time.sleep(random.uniform(1.5, 3.0))
 
 
-def _extract_profile_urls(driver: webdriver.Chrome) -> list[str]:
-    """Extrae y deduplica todas las URLs de perfil visibles en la página."""
-    elements = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/'], a[href^='/in/']")
+def _find_connections_list_container(driver: webdriver.Chrome):
+    """Busca el contenedor que tiene la lista de conexiones (no el menú lateral)."""
+    try:
+        all_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/'], a[href^='/in/']")
+        if not all_links:
+            return None
+        for link in all_links:
+            try:
+                parent = link
+                for _ in range(15):
+                    parent = driver.execute_script("return arguments[0].parentElement;", parent)
+                    if not parent:
+                        break
+                    child_links = parent.find_elements(By.CSS_SELECTOR, "a[href*='/in/']")
+                    if len(child_links) >= 5:
+                        return parent
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return None
+
+
+def _extract_profile_urls(driver: webdriver.Chrome, root=None) -> list[str]:
+    """Extrae y deduplica URLs de perfil. Si root está definido, solo busca dentro de root (lista de contactos)."""
+    scope = root if root else driver
+    elements = scope.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/in/'], a[href^='/in/']")
     seen = set()
     urls = []
     for el in elements:
         href = el.get_attribute("href") or ""
-        # Normalizar a URL absoluta
         if href.startswith("/in/"):
             href = "https://www.linkedin.com" + href
         base = href.split("?")[0].rstrip("/")
-        # Solo URLs de perfil, no sub-páginas como /in/xxx/details/
         parts = base.split("/in/")
         if len(parts) != 2:
             continue
         slug = parts[1].strip("/")
-        # Ignorar slugs vacíos o sub-páginas (contienen /)
         if not slug or "/" in slug:
             continue
         clean = f"https://www.linkedin.com/in/{slug}/"
@@ -230,19 +315,20 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
     _human_pause(0.2, 0.5)
     driver.execute_script("arguments[0].click();", connection_link)
     print(f"  [connections] Enlace 'contactos' clicado")
-    _human_pause(1.0, 2.0)
+    time.sleep(random.uniform(3.0, 5.0))
 
     try:
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/in/')]"))
         )
     except TimeoutException:
         print(f"  [connections] No cargaron resultados para {slug}")
         return []
+    time.sleep(random.uniform(2.0, 4.0))
 
     collected = set()
     _collect_all_pages(driver, collected)
-    urls = [u for u in collected if slug not in u]
+    urls = [u for u in collected if (u.rstrip("/").split("/")[-1] or "") != slug]
     print(f"  [connections] {len(urls)} conexiones encontradas para {slug}")
     return urls
 
