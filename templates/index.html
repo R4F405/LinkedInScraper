@@ -24,6 +24,16 @@
       --pdf-red: #dc2626;
       --pdf-red-hover: #b91c1c;
     }
+    body.dark {
+      --bg: #1a1d21;
+      --card: #24282e;
+      --text: #e4e6eb;
+      --text-muted: #b0b3b8;
+      --border: #3e4349;
+      --shadow: 0 2px 8px rgba(0,0,0,0.3);
+      --shadow-hover: 0 4px 14px rgba(0,0,0,0.4);
+      --linkedin-light: #2d3748;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
@@ -35,6 +45,12 @@
       max-width: 1100px;
       margin-left: auto;
       margin-right: auto;
+      transition: background 0.2s, color 0.2s;
+    }
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      .data-toolbar { flex-direction: column; align-items: stretch; }
+      .contact-cards { grid-template-columns: 1fr; }
     }
     h1 {
       color: var(--linkedin-dark);
@@ -381,10 +397,29 @@
     .contact-cards-grouped { display: block !important; }
     .contact-cards-grouped .company-group .contact-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     table.data-table tr.company-header td { background: #eef2f6; font-weight: 600; }
+    body.dark table.data-table tr.company-header td { background: var(--linkedin-light); }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); }
+    @media (max-width: 600px) { .charts-row { grid-template-columns: 1fr; } }
+    .chart-box h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-muted); }
+    .chart-bar-wrap { margin-bottom: 0.5rem; }
+    .chart-bar-label { font-size: 0.8rem; margin-bottom: 0.2rem; display: flex; justify-content: space-between; }
+    .chart-bar-bg { height: 20px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .chart-bar-fill { height: 100%; background: var(--linkedin-blue); border-radius: 4px; transition: width 0.3s; }
+    .chart-pie-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .chart-pie-legend { display: flex; gap: 1rem; font-size: 0.85rem; }
+    .chart-pie-legend span { display: flex; align-items: center; gap: 0.35rem; }
+    .chart-pie-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .compare-section { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: #f8fafc; }
+    body.dark .compare-section { background: var(--linkedin-light); }
+    .compare-section select { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); margin: 0 0.25rem; }
+    .compare-result { margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-muted); }
   </style>
 </head>
 <body>
-  <h1>Contactos de LinkedIn</h1>
+  <header style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.5rem;">
+    <h1 style="margin:0;">Contactos de LinkedIn</h1>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnDarkMode" title="Modo oscuro">🌙</button>
+  </header>
 
   <div class="card">
     <h2>Descargar contactos</h2>
@@ -429,6 +464,13 @@
         <tbody id="scrapesBody"></tbody>
       </table>
     </div>
+    <div class="compare-section" id="compareSection" style="display:none;">
+      <strong>Comparar exportaciones:</strong>
+      <select id="compareA"></select>
+      <select id="compareB"></select>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnCompare">Comparar</button>
+      <div class="compare-result" id="compareResult"></div>
+    </div>
     <div class="data-panel" id="dataPanel" style="display:none;">
       <div class="data-panel-header">
         <div>
@@ -438,6 +480,16 @@
         <button type="button" class="btn btn-ghost" id="btnCollapseData" style="color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.5);">
           Ocultar
         </button>
+      </div>
+      <div class="charts-row" id="chartsRow" style="display:none;">
+        <div class="chart-box" id="chartByCompany">
+          <h4>Contactos por empresa</h4>
+          <div id="chartBarsContainer"></div>
+        </div>
+        <div class="chart-box" id="chartEmail">
+          <h4>Con email / Sin email</h4>
+          <div class="chart-pie-row" id="chartEmailContainer"></div>
+        </div>
       </div>
       <div class="data-toolbar">
         <input type="text" class="search" id="dataSearch" placeholder="Buscar por nombre, empresa o email" />
@@ -520,7 +572,17 @@
     const dataViewTable = document.getElementById('dataViewTable');
     const dataViewCards = document.getElementById('dataViewCards');
     const contactCards = document.getElementById('contactCards');
+    const chartsRow = document.getElementById('chartsRow');
+    const chartBarsContainer = document.getElementById('chartBarsContainer');
+    const chartEmailContainer = document.getElementById('chartEmailContainer');
+    const compareSection = document.getElementById('compareSection');
+    const compareA = document.getElementById('compareA');
+    const compareB = document.getElementById('compareB');
+    const compareResult = document.getElementById('compareResult');
+    const btnDarkMode = document.getElementById('btnDarkMode');
+    const btnCompare = document.getElementById('btnCompare');
 
+    let scrapeList = [];
     let currentData = { rows: [], cols: [], id: null };
     let sortCol = null;
     let sortDir = 1;
@@ -556,6 +618,36 @@
 
     btnCollapseData.addEventListener('click', collapseDataPanel);
     btnRefresh.addEventListener('click', () => { loadScrapes(); });
+
+    if (btnDarkMode) {
+      if (localStorage.getItem('dark') === '1') document.body.classList.add('dark');
+      btnDarkMode.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      btnDarkMode.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        localStorage.setItem('dark', document.body.classList.contains('dark') ? '1' : '0');
+        btnDarkMode.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+      });
+    }
+
+    function renderCharts(rows) {
+      if (!chartsRow || !rows.length) return;
+      chartsRow.style.display = 'grid';
+      const byCompany = {};
+      rows.forEach(r => {
+        const c = (r.company || '').trim() || 'Sin empresa';
+        byCompany[c] = (byCompany[c] || 0) + 1;
+      });
+      const topCompanies = Object.entries(byCompany).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const maxCount = Math.max(...topCompanies.map(([, n]) => n), 1);
+      chartBarsContainer.innerHTML = topCompanies.map(([name, count]) => {
+        const pct = (100 * count / maxCount).toFixed(0);
+        return '<div class="chart-bar-wrap"><div class="chart-bar-label"><span>' + escapeHtml(name) + '</span><span>' + count + '</span></div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:' + pct + '%"></div></div></div>';
+      }).join('') || '<p class="chart-bar-label">Sin datos</p>';
+
+      const withEmail = rows.filter(r => (r.email || '').trim()).length;
+      const noEmail = rows.length - withEmail;
+      chartEmailContainer.innerHTML = '<div class="chart-pie-legend"><span><span class="chart-pie-dot" style="background:var(--excel-green)"></span> Con email: ' + withEmail + '</span><span><span class="chart-pie-dot" style="background:var(--text-muted)"></span> Sin email: ' + noEmail + '</span></div><div class="chart-bar-bg" style="margin-top:0.5rem"><div class="chart-bar-fill" style="width:' + (rows.length ? (100 * withEmail / rows.length).toFixed(1) : 0) + '%;background:var(--excel-green)"></div></div>';
+    }
 
     function getFilteredRows() {
       let rows = currentData.rows;
@@ -756,6 +848,37 @@
     document.getElementById('btnDownloadFilteredPdf')?.addEventListener('click', () => downloadFiltered('pdf'));
     document.getElementById('btnDownloadFilteredCsv')?.addEventListener('click', () => downloadFiltered('csv'));
 
+    if (btnCompare && compareA && compareB && compareResult) {
+      btnCompare.addEventListener('click', async () => {
+        const idA = compareA.value;
+        const idB = compareB.value;
+        if (!idA || !idB || idA === idB) {
+          compareResult.textContent = 'Elige dos exportaciones distintas.';
+          return;
+        }
+        compareResult.textContent = 'Cargando…';
+        try {
+          const [rA, rB] = await Promise.all([
+            fetch('/api/scrapes/' + encodeURIComponent(idA) + '/data').then(r => r.json()),
+            fetch('/api/scrapes/' + encodeURIComponent(idB) + '/data').then(r => r.json())
+          ]);
+          const key = row => (String(row.name || '').trim() + '|' + String(row.company || '').trim()).toLowerCase();
+          const sA = scrapeList.find(s => s.id === idA);
+          const sB = scrapeList.find(s => s.id === idB);
+          const aEsMasReciente = sA && sB && sA.date >= sB.date;
+          const reciente = aEsMasReciente ? rA : rB;
+          const anterior = aEsMasReciente ? rB : rA;
+          const setAnterior = new Set(anterior.map(key));
+          const setReciente = new Set(reciente.map(key));
+          const nuevos = reciente.filter(row => !setAnterior.has(key(row)));
+          const soloAnterior = anterior.filter(row => !setReciente.has(key(row)));
+          compareResult.innerHTML = '<strong>Contactos nuevos en la más reciente:</strong> ' + nuevos.length + '.<br><strong>Solo en la anterior:</strong> ' + soloAnterior.length + '.';
+        } catch (e) {
+          compareResult.textContent = 'Error: ' + e.message;
+        }
+      });
+    }
+
     async function loadScrapes() {
       scrapesSummary.textContent = 'Cargando…';
       scrapesEmpty.style.display = 'block';
@@ -804,6 +927,15 @@
         } else {
           scrapesTable.style.display = 'none';
         }
+        scrapeList = items;
+        if (compareSection && items.length >= 2) {
+          compareSection.style.display = 'block';
+          compareA.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
+          compareB.innerHTML = items.map(s => '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.date) + ' (' + s.count + ')</option>').join('');
+          if (compareB.options.length > 1) compareB.selectedIndex = 0;
+        } else if (compareSection) {
+          compareSection.style.display = 'none';
+        }
       } catch (e) {
         scrapesSummary.textContent = 'No se pudo cargar la lista.';
         scrapesEmpty.textContent = 'Error: no se pudo conectar. ¿Está la aplicación en marcha? Revisa que hayas ejecutado: python app.py';
@@ -847,7 +979,9 @@
           dataBody.innerHTML = '';
           dataEmptyMsg.style.display = 'block';
           paginationInfo.textContent = '';
+          if (chartsRow) chartsRow.style.display = 'none';
         } else {
+          renderCharts(rows);
           renderDataTable();
         }
         dataPanel.style.display = 'block';
