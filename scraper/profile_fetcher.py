@@ -17,15 +17,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, MoveTargetOutOfBoundsException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 from utils.config import RAW_HTML_DIR
-
 
 def _human_pause(min_s: float = 0.4, max_s: float = 1.2):
     """Pausa aleatoria para simular tiempos de reacción humanos."""
     time.sleep(random.uniform(min_s, max_s))
-
 
 def _random_mouse_move(driver: webdriver.Chrome) -> None:
     """
@@ -43,7 +41,6 @@ def _random_mouse_move(driver: webdriver.Chrome) -> None:
         ActionChains(driver).move_by_offset(-x, -y).perform()
     except Exception:
         pass
-
 
 def _scroll_to_load(driver: webdriver.Chrome):
     """
@@ -85,8 +82,6 @@ def _scroll_to_load(driver: webdriver.Chrome):
 
     # Pausa final al terminar de leer la página
     _human_pause(0.3, 0.8)
-
-
 
 def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
     """
@@ -179,7 +174,6 @@ def _extract_contact_from_modal(driver: webdriver.Chrome) -> dict:
 
     return {"email": email, "phone": phone}
 
-
 def fetch_profile(driver: webdriver.Chrome, url: str) -> Path:
     """
     Navega a un perfil, extrae el email del modal con Selenium,
@@ -215,7 +209,6 @@ def fetch_profile(driver: webdriver.Chrome, url: str) -> Path:
 
     return html_path
 
-
 def fetch_all_profiles(driver: webdriver.Chrome, urls: list[str]) -> list[Path]:
     """
     Navega y guarda el HTML de cada URL de la lista.
@@ -227,10 +220,9 @@ def fetch_all_profiles(driver: webdriver.Chrome, urls: list[str]) -> list[Path]:
             path = fetch_profile(driver, url)
             saved.append(path)
             print(f"  [scraper] guardado → {path.name}")
-            delay = random.uniform(3, 10)
+            delay = random.uniform(1, 3)
             print(f"  [scraper] esperando {delay:.1f}s antes del siguiente perfil...")
             time.sleep(delay)
         except Exception as e:
             print(f"  [scraper] ERROR en {url}: {e}")
     return saved
-
