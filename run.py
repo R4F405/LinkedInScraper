@@ -37,6 +37,21 @@ _BREAK_MIN_S = 15 * 60   # 15 min
 _BREAK_MAX_S = 35 * 60   # 35 min
 
 
+class CancelToMenu(Exception):
+    """Señal de cancelación para volver al menú principal."""
+
+
+def _prompt_cancel(context: str) -> None:
+    """
+    Checkpoint interactivo para permitir cancelar y volver al menú.
+    - Enter: continuar
+    - c: cancelar ejecución actual y volver al menú
+    """
+    ans = input(f"  [{context}] Enter=seguir | c=volver al menú: ").strip().lower()
+    if ans == "c":
+        raise CancelToMenu()
+
+
 # ---------------------------------------------------------------------------
 # Utilidades compartidas
 # ---------------------------------------------------------------------------
@@ -91,8 +106,12 @@ def choose_mode(driver, own_url: str) -> dict:
         print( "  [1] Scrapear conexiones de un perfil concreto (introducir URL)")
     print(  "  [2] Introducir URLs de perfil manualmente")
     print(  "  [3] Scraping profundo: mis contactos + contactos de cada contacto")
+    print(  "  [q] Salir")
 
-    choice = input("\n  Elige opción (1/2/3): ").strip()
+    choice = input("\n  Elige opción (1/2/3/q): ").strip().lower()
+
+    if choice == "q":
+        return {"mode": 0, "own_url": own_url, "seed_urls": []}
 
     if choice == "3":
         if not own_url:
@@ -201,6 +220,7 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 
     for idx, contact_url in enumerate(level1_urls, 1):
         print(f"\n── Contacto {idx}/{len(level1_urls)}: {contact_url}")
+        _prompt_cancel(f"contacto {idx}/{len(level1_urls)}")
 
         # a) Scrapear el perfil del contacto directo
         saved_lvl1 = _scrape_batch(driver, [contact_url], already_scraped, counter)
@@ -245,15 +265,24 @@ if __name__ == "__main__":
         else:
             print("  (No se pudo detectar automáticamente)")
 
-        config = choose_mode(driver, own_url)
+        while True:
+            config = choose_mode(driver, own_url)
 
-        if config["mode"] == 3:
-            saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
-        else:
-            if not config["seed_urls"]:
-                print("No se introdujo ninguna URL. Saliendo.")
-                raise SystemExit(1)
-            saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+            if config["mode"] == 0:
+                print("Saliendo.")
+                raise SystemExit(0)
+
+            try:
+                if config["mode"] == 3:
+                    saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
+                else:
+                    if not config["seed_urls"]:
+                        print("No se introdujo ninguna URL.")
+                        continue
+                    saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+                break
+            except CancelToMenu:
+                print("\n  Cancelado por usuario. Volviendo al menú principal...\n")
 
     finally:
         quit_driver(driver)
