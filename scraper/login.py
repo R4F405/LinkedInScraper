@@ -4,6 +4,7 @@ scraper/login.py
 Autentica en LinkedIn usando credenciales del .env.
 """
 
+import re
 import time
 import os
 from selenium import webdriver
@@ -56,80 +57,113 @@ def login(driver: webdriver.Chrome) -> bool:
 def get_own_profile_url(driver: webdriver.Chrome) -> str:
     """
     Obtiene la URL del perfil del usuario que ha iniciado sesión.
-    Prueba tres estrategias en cascada:
-      1. Enlace al perfil propio en la barra de navegación (más fiable).
-      2. Navegar a /in/me y capturar la redirección.
-      3. Enlace en el panel lateral del feed.
+
+    Estrategias en cascada (de más a menos fiable):
+      1. Extrae publicProfileUrl / vanityName del JSON embebido en la página
+         (LinkedIn siempre serializa los datos del usuario en el HTML).
+      2. XPath: busca el enlace de nav "Yo" / "Me" por texto.
+      3. Primeros enlaces /in/ del feed (sidebar izquierda = perfil propio).
+      4. Navega a /in/me y espera la redirección + lee canonical.
 
     Returns:
         URL completa del perfil propio, p.ej. 'https://www.linkedin.com/in/mi-usuario/'
-        o '' si no se pudo resolver.
+        o '' si ninguna estrategia funciona.
     """
+
     def _clean(url: str) -> str:
         return url.split("?")[0].rstrip("/") + "/"
 
-    def _is_real_profile(url: str) -> bool:
-        cleaned = _clean(url)
-        return (
-            "/in/" in cleaned
-            and cleaned != "https://www.linkedin.com/in/me/"
-            and "linkedin.com/in/" in cleaned
-        )
+    def _is_real(url: str) -> bool:
+        c = _clean(url)
+        if not c.startswith("https://www.linkedin.com/in/"):
+            if not c.startswith("https://linkedin.com/in/"):
+                return False
+        slug = c.split("/in/", 1)[1].rstrip("/")
+        return bool(slug) and slug != "me" and "/" not in slug
 
-    # ── Estrategia 1: nav bar ──────────────────────────────────────────────
-    # Después del login estamos en el feed. La barra de nav contiene
-    # un enlace con href="/in/<slug>" o "linkedin.com/in/<slug>" bajo el
-    # botón "Yo" / "Me".
+    def _from_source(source: str) -> str:
+        """Extrae la URL del perfil desde el JSON embebido por LinkedIn."""
+        # Buscar publicProfileUrl completo
+        m = re.search(
+            r'"publicProfileUrl"\s*:\s*"(https://www\.linkedin\.com/in/[^"?/]+/?)"',
+            source,
+        )
+        if m:
+            url = _clean(m.group(1))
+            if _is_real(url):
+                return url
+        # Buscar vanityName (slug del perfil)
+        m = re.search(r'"vanityName"\s*:\s*"([a-zA-Z0-9_%\-]+)"', source)
+        if m:
+            url = f"https://www.linkedin.com/in/{m.group(1)}/"
+            if _is_real(url):
+                return url
+        return ""
+
+    # Asegurar que estamos en el feed antes de empezar
     try:
-        nav_selectors = [
-            "a[href*='/in/'][data-control-name='identity_welcome_message']",
-            "a.ember-view[href*='/in/']",
-            "nav a[href*='/in/']",
-            "a[data-test-app-aware-link][href*='/in/']",
-        ]
-        for sel in nav_selectors:
-            els = driver.find_elements(By.CSS_SELECTOR, sel)
+        if "/feed" not in driver.current_url:
+            driver.get("https://www.linkedin.com/feed/")
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            time.sleep(2)
+    except Exception:
+        pass
+
+    # ── Estrategia 1: JSON embebido en el feed ────────────────────────────
+    try:
+        result = _from_source(driver.page_source)
+        if result:
+            return result
+    except Exception:
+        pass
+
+    # ── Estrategia 2: enlace de nav "Yo" / "Me" por texto ────────────────
+    try:
+        for label in ["Yo", "Me"]:
+            els = driver.find_elements(
+                By.XPATH,
+                f"//a[@href and (.//span[normalize-space()='{label}']"
+                f" or normalize-space(.)='{label}')]",
+            )
             for el in els:
                 href = el.get_attribute("href") or ""
-                if _is_real_profile(href):
+                if _is_real(href):
                     return _clean(href)
     except Exception:
         pass
 
-    # ── Estrategia 2: /in/me redirect ─────────────────────────────────────
+    # ── Estrategia 3: primeros enlaces /in/ del feed (sidebar izquierda) ─
     try:
-        current_page = driver.current_url  # guardamos para volver si falla
+        links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/in/']")
+        for link in links[:15]:
+            href = link.get_attribute("href") or ""
+            if _is_real(href):
+                return _clean(href)
+    except Exception:
+        pass
+
+    # ── Estrategia 4: /in/me con espera larga + canonical ────────────────
+    try:
         driver.get("https://www.linkedin.com/in/me")
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))
-        )
+        time.sleep(5)
         url = driver.current_url
-        if _is_real_profile(url):
+        if _is_real(url):
             return _clean(url)
-        # Si no redirigió, intentar leer el canonical desde el HTML
+        # canonical
         try:
-            canonical = driver.find_element(By.CSS_SELECTOR, "link[rel='canonical']")
-            href = canonical.get_attribute("href") or ""
-            if _is_real_profile(href):
+            c = driver.find_element(By.CSS_SELECTOR, "link[rel='canonical']")
+            href = c.get_attribute("href") or ""
+            if _is_real(href):
                 return _clean(href)
         except Exception:
             pass
-        # Volver al feed para no dejar el driver en estado raro
-        driver.get("https://www.linkedin.com/feed")
-    except TimeoutException:
-        pass
-
-    # ── Estrategia 3: panel lateral del feed ──────────────────────────────
-    try:
-        driver.get("https://www.linkedin.com/feed")
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='/in/']"))
-        )
-        els = driver.find_elements(By.CSS_SELECTOR, "a[href*='/in/']")
-        for el in els:
-            href = el.get_attribute("href") or ""
-            if _is_real_profile(href):
-                return _clean(href)
+        # JSON embebido en la página /in/me
+        result = _from_source(driver.page_source)
+        if result:
+            return result
+        driver.get("https://www.linkedin.com/feed/")
     except Exception:
         pass
 
