@@ -318,6 +318,69 @@
     .modal h3 { margin: 0 0 1rem 0; font-size: 1.1rem; }
     .modal ol { margin: 0; padding-left: 1.25rem; line-height: 1.8; color: var(--text-muted); }
     .modal .btn { margin-top: 1rem; }
+    .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+    .chip {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .chip:hover { background: #eef1f4; color: var(--text); }
+    .chip.active { background: var(--linkedin-light); color: var(--linkedin-dark); border-color: var(--linkedin-blue); }
+    .view-toggle { display: flex; gap: 0.25rem; }
+    .view-toggle .btn { padding: 0.35rem 0.65rem; font-size: 0.85rem; }
+    .view-toggle .btn.active { background: var(--linkedin-blue); color: #fff; }
+    .contact-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .contact-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      transition: box-shadow 0.15s;
+    }
+    .contact-card:hover { box-shadow: var(--shadow-hover); }
+    .contact-card-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--linkedin-light);
+      color: var(--linkedin-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .contact-card-name { font-weight: 600; margin-bottom: 0.25rem; }
+    .contact-card-meta { font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; }
+    .company-group { margin-bottom: 1.25rem; }
+    .company-group h4 {
+      margin: 0 0 0.5rem 0;
+      padding: 0.5rem 0.75rem;
+      background: #eef2f6;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .data-view-table { display: block; }
+    .data-view-cards { display: block; }
+    .data-view-table.hidden { display: none !important; }
+    .data-view-cards.hidden { display: none !important; }
+    .contact-cards-grouped { display: block !important; }
+    .contact-cards-grouped .company-group .contact-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    table.data-table tr.company-header td { background: #eef2f6; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -378,6 +441,16 @@
       </div>
       <div class="data-toolbar">
         <input type="text" class="search" id="dataSearch" placeholder="Buscar por nombre, empresa o email" />
+        <div class="chips" id="quickFilterChips">
+          <button type="button" class="chip active" data-filter="">Todos</button>
+          <button type="button" class="chip" data-filter="with_email">Con email</button>
+          <button type="button" class="chip" data-filter="no_email">Sin email</button>
+          <button type="button" class="chip" data-filter="by_company" id="chipByCompany">Por empresa</button>
+        </div>
+        <div class="view-toggle">
+          <button type="button" class="btn btn-secondary btn-sm view-tab active" data-view="table">Tabla</button>
+          <button type="button" class="btn btn-secondary btn-sm view-tab" data-view="cards">Tarjetas</button>
+        </div>
         <div class="data-toolbar-right">
           <span id="downloadFilteredWrap" class="download-filtered-wrap" style="display:none;">
             <span class="download-filtered-label">Descargar solo lo que estoy viendo:</span>
@@ -398,11 +471,14 @@
           <span id="paginationInfo"></span>
         </div>
       </div>
-      <div class="data-table-wrap">
+      <div class="data-view-table data-table-wrap" id="dataViewTable">
         <table class="data-table" id="dataTable">
           <thead id="dataHead"></thead>
           <tbody id="dataBody"></tbody>
         </table>
+      </div>
+      <div class="data-view-cards hidden" id="dataViewCards">
+        <div class="contact-cards" id="contactCards"></div>
       </div>
       <div class="data-empty-msg" id="dataEmptyMsg" style="display:none;">No hay contactos que coincidan con la búsqueda.</div>
     </div>
@@ -441,12 +517,18 @@
     const dataEmptyMsg = document.getElementById('dataEmptyMsg');
     const downloadFilteredWrap = document.getElementById('downloadFilteredWrap');
     const btnToggleCols = document.getElementById('btnToggleCols');
+    const dataViewTable = document.getElementById('dataViewTable');
+    const dataViewCards = document.getElementById('dataViewCards');
+    const contactCards = document.getElementById('contactCards');
 
     let currentData = { rows: [], cols: [], id: null };
     let sortCol = null;
     let sortDir = 1;
     let currentPage = 1;
     let showAllCols = false;
+    let quickFilter = '';
+    let groupByCompany = false;
+    let viewMode = 'table';
 
     function showMsg(text, isError) {
       scrapeMsg.textContent = text;
@@ -476,14 +558,27 @@
     btnRefresh.addEventListener('click', () => { loadScrapes(); });
 
     function getFilteredRows() {
+      let rows = currentData.rows;
       const q = (dataSearch.value || '').trim().toLowerCase();
-      if (!q) return currentData.rows;
-      return currentData.rows.filter(row => {
-        return currentData.cols.some(col => {
+      if (q) {
+        rows = rows.filter(row => currentData.cols.some(col => {
           const v = String(row[col] ?? '');
           return v.toLowerCase().includes(q);
-        });
+        }));
+      }
+      if (quickFilter === 'with_email') rows = rows.filter(r => (r.email || '').trim());
+      if (quickFilter === 'no_email') rows = rows.filter(r => !(r.email || '').trim());
+      return rows;
+    }
+
+    function getGroupedByCompany(rows) {
+      const groups = {};
+      rows.forEach(row => {
+        const company = (row.company || '').trim() || 'Sin empresa';
+        if (!groups[company]) groups[company] = [];
+        groups[company].push(row);
       });
+      return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
     }
 
     function getSortedRows(rows) {
@@ -504,6 +599,21 @@
       return visible.length ? visible : currentData.cols;
     }
 
+    function renderContactCard(row) {
+      const name = String(row.name || '').trim() || '—';
+      const initial = name.charAt(0).toUpperCase();
+      const company = String(row.company || '').trim() || '—';
+      const email = String(row.email || '').trim() || '—';
+      const location = String(row.location || '').trim() || '—';
+      return '<div class="contact-card">' +
+        '<div class="contact-card-avatar">' + escapeHtml(initial) + '</div>' +
+        '<div class="contact-card-name">' + escapeHtml(name) + '</div>' +
+        '<div class="contact-card-meta">' + escapeHtml(company) + '</div>' +
+        (email !== '—' ? '<div class="contact-card-meta">' + escapeHtml(email) + '</div>' : '') +
+        (location !== '—' ? '<div class="contact-card-meta">' + escapeHtml(location) + '</div>' : '') +
+        '</div>';
+    }
+
     function renderDataTable() {
       const filtered = getFilteredRows();
       const sorted = getSortedRows(filtered);
@@ -516,35 +626,69 @@
 
       dataEmptyMsg.style.display = total === 0 ? 'block' : 'none';
       if (downloadFilteredWrap) {
-        const hasFilter = currentData.rows.length > 0 && (dataSearch.value.trim() || filtered.length < currentData.rows.length);
+        const hasFilter = currentData.rows.length > 0 && (dataSearch.value.trim() || quickFilter || filtered.length < currentData.rows.length);
         downloadFilteredWrap.style.display = hasFilter ? 'inline-flex' : 'none';
       }
 
       const colsToShow = getColsToShow();
       const headers = colsToShow.map(c => COLS_ES[c] || c);
-      dataHead.innerHTML = '<tr>' + colsToShow.map((c, i) => {
-        const label = headers[i];
-        const cl = (c === sortCol) ? (sortDir === 1 ? 'sorted-asc' : 'sorted-desc') : '';
-        return '<th class="' + cl + '" data-col="' + escapeHtml(c) + '">' + escapeHtml(label) + '</th>';
-      }).join('') + '</tr>';
 
-      dataHead.querySelectorAll('th').forEach(th => {
-        th.addEventListener('click', () => {
-          const col = th.dataset.col;
-          if (sortCol === col) sortDir = -sortDir;
-          else { sortCol = col; sortDir = 1; }
-          currentPage = 1;
-          renderDataTable();
-        });
-      });
-
-      dataBody.innerHTML = slice.map(row => {
-        return '<tr>' + colsToShow.map(c => {
-          const val = String(row[c] ?? '');
-          const title = val.length > 50 ? val : '';
-          return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+      if (viewMode === 'table') {
+        dataViewTable.classList.remove('hidden');
+        dataViewCards.classList.add('hidden');
+        dataHead.innerHTML = '<tr>' + colsToShow.map((c, i) => {
+          const label = headers[i];
+          const cl = (c === sortCol) ? (sortDir === 1 ? 'sorted-asc' : 'sorted-desc') : '';
+          return '<th class="' + cl + '" data-col="' + escapeHtml(c) + '">' + escapeHtml(label) + '</th>';
         }).join('') + '</tr>';
-      }).join('');
+
+        dataHead.querySelectorAll('th').forEach(th => {
+          th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (sortCol === col) sortDir = -sortDir;
+            else { sortCol = col; sortDir = 1; }
+            currentPage = 1;
+            renderDataTable();
+          });
+        });
+
+        if (groupByCompany) {
+          const groups = getGroupedByCompany(slice);
+          let html = '';
+          groups.forEach(([companyName, groupRows]) => {
+            html += '<tr class="company-header"><td colspan="' + colsToShow.length + '"><strong>' + escapeHtml(companyName) + '</strong></td></tr>';
+            groupRows.forEach(row => {
+              html += '<tr>' + colsToShow.map(c => {
+                const val = String(row[c] ?? '');
+                const title = val.length > 50 ? val : '';
+                return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+              }).join('') + '</tr>';
+            });
+          });
+          dataBody.innerHTML = html;
+        } else {
+          dataBody.innerHTML = slice.map(row => {
+            return '<tr>' + colsToShow.map(c => {
+              const val = String(row[c] ?? '');
+              const title = val.length > 50 ? val : '';
+              return '<td title="' + escapeHtml(title) + '">' + escapeHtml(val) + '</td>';
+            }).join('') + '</tr>';
+          }).join('');
+        }
+      } else {
+        dataViewTable.classList.add('hidden');
+        dataViewCards.classList.remove('hidden');
+        if (groupByCompany) {
+          const groups = getGroupedByCompany(slice);
+          contactCards.innerHTML = groups.map(([companyName, groupRows]) => {
+            const cardsHtml = groupRows.map(row => renderContactCard(row)).join('');
+            return '<div class="company-group"><h4>' + escapeHtml(companyName) + '</h4><div class="contact-cards">' + cardsHtml + '</div></div>';
+          }).join('');
+        } else {
+          contactCards.innerHTML = slice.map(row => renderContactCard(row)).join('');
+        }
+        contactCards.classList.toggle('contact-cards-grouped', groupByCompany);
+      }
 
       if (pageSize && total > 0) {
         paginationInfo.textContent = (start + 1) + '–' + Math.min(start + pageSize, total) + ' de ' + total;
@@ -557,6 +701,27 @@
 
     dataSearch.addEventListener('input', () => { currentPage = 1; renderDataTable(); });
     pageSizeSelect.addEventListener('change', () => { currentPage = 1; renderDataTable(); });
+
+    document.querySelectorAll('#quickFilterChips .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const filter = chip.dataset.filter;
+        if (filter === 'by_company') groupByCompany = !groupByCompany;
+        else quickFilter = filter || '';
+        document.querySelectorAll('#quickFilterChips .chip').forEach(c => {
+          const f = c.dataset.filter;
+          c.classList.toggle('active', f === 'by_company' ? groupByCompany : quickFilter === f);
+        });
+        currentPage = 1;
+        renderDataTable();
+      });
+    });
+    document.querySelectorAll('.view-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        viewMode = tab.dataset.view;
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === viewMode));
+        renderDataTable();
+      });
+    });
 
     if (btnToggleCols) {
       btnToggleCols.addEventListener('click', () => {
@@ -663,6 +828,14 @@
           ? rows.length + ' contactos · ' + withEmail + ' con email · ' + companies.size + ' empresas'
           : '';
         showAllCols = false;
+        quickFilter = '';
+        groupByCompany = false;
+        viewMode = 'table';
+        document.querySelectorAll('#quickFilterChips .chip').forEach(c => {
+          const f = c.dataset.filter;
+          c.classList.toggle('active', f === 'by_company' ? false : f === '');
+        });
+        document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'table'));
         if (btnToggleCols) {
           const hasExtra = currentData.cols.some(c => !COLS_VISIBLE.includes(c));
           btnToggleCols.style.display = hasExtra ? 'inline-block' : 'none';
