@@ -8,6 +8,7 @@ Opciones disponibles al ejecutar:
 
 Uso:
     python run.py
+    python run.py --url "https://www.linkedin.com/in/nombre-perfil/"   # modo no interactivo (p. ej. desde la vista web)
 
 Nota para integración con GUI:
     La función `choose_mode(driver, own_url)` devuelve un dict con:
@@ -19,7 +20,9 @@ Nota para integración con GUI:
     Reemplaza esa función con la lógica equivalente de la GUI.
 """
 
+import argparse
 import random
+import sys
 import time
 
 from scraper.driver import create_driver, quit_driver
@@ -136,6 +139,13 @@ def _normalize(url: str) -> str:
     return url.rstrip("/") + "/"
 
 
+def _parse_args():
+    """Parsea --url para invocación no interactiva desde la vista web."""
+    parser = argparse.ArgumentParser(description="Scraper de contactos de LinkedIn.")
+    parser.add_argument("--url", metavar="URL", help="URL de perfil a scrapear (modo 1: perfil + sus conexiones). Si se omite, se usa el menú interactivo.")
+    return parser.parse_args()
+
+
 # ---------------------------------------------------------------------------
 # Modos de ejecución
 # ---------------------------------------------------------------------------
@@ -224,10 +234,18 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    args = _parse_args()
+    url_from_cli = (args.url or "").strip()
+    if url_from_cli and "linkedin.com/in/" not in url_from_cli:
+        print("URL inválida. Debe ser un perfil de LinkedIn (/in/).")
+        sys.exit(1)
+    if url_from_cli:
+        url_from_cli = _normalize(url_from_cli)
+
     driver = create_driver(headless=False)
     saved_paths = []
     owner_slug = ""
-    
+
     try:
         print("\n── Login ───────────────────────────────────────")
         if not login(driver):
@@ -235,22 +253,26 @@ if __name__ == "__main__":
             raise SystemExit(1)
         print("Login correcto ✓")
 
-        print("  Detectando perfil propio…")
-        own_url = get_own_profile_url(driver)
-        if own_url:
-            print(f"  Perfil propio: {own_url}")
+        if url_from_cli:
+            # Modo no interactivo: una URL desde la vista web (equivalente a modo 1)
+            saved_paths, owner_slug = run_mode_1_2(driver, [url_from_cli])
         else:
-            print("  (No se pudo detectar automáticamente)")
+            print("  Detectando perfil propio…")
+            own_url = get_own_profile_url(driver)
+            if own_url:
+                print(f"  Perfil propio: {own_url}")
+            else:
+                print("  (No se pudo detectar automáticamente)")
 
-        config = choose_mode(driver, own_url)
+            config = choose_mode(driver, own_url)
 
-        if config["mode"] == 3:
-            saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
-        else:
-            if not config["seed_urls"]:
-                print("No se introdujo ninguna URL. Saliendo.")
-                raise SystemExit(1)
-            saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+            if config["mode"] == 3:
+                saved_paths, owner_slug = run_mode_3(driver, config["own_url"])
+            else:
+                if not config["seed_urls"]:
+                    print("No se introdujo ninguna URL. Saliendo.")
+                    raise SystemExit(1)
+                saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
 
     finally:
         quit_driver(driver)
