@@ -51,3 +51,27 @@ def login(driver: webdriver.Chrome) -> bool:
 
     except TimeoutException:
         return False
+
+
+def get_own_profile_url(driver: webdriver.Chrome) -> str:
+    """
+    Obtiene la URL del perfil del usuario que ha iniciado sesión.
+    Navega a /in/me (alias oficial de LinkedIn que redirige al perfil propio)
+    y devuelve la URL final resuelta.
+
+    Returns:
+        URL completa del perfil propio, p.ej. 'https://www.linkedin.com/in/mi-usuario/'
+        o '' si no se pudo resolver.
+    """
+    try:
+        driver.get("https://www.linkedin.com/in/me")
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))
+        )
+        url = driver.current_url.split("?")[0].rstrip("/") + "/"
+        # Asegurarse de que la redirección fue a un /in/ real
+        if "/in/" in url and url != "https://www.linkedin.com/in/me/":
+            return url
+    except TimeoutException:
+        pass
+    return ""
