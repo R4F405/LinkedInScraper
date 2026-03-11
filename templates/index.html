@@ -377,6 +377,20 @@
     }
     .chip:hover { background: #eef1f4; color: var(--text); }
     .chip.active { background: var(--linkedin-light); color: var(--linkedin-dark); border-color: var(--linkedin-blue); }
+    body.dark .chip {
+      background: #111827;
+      border-color: #4b5563;
+      color: #e5e7eb;
+    }
+    body.dark .chip:hover {
+      background: #1f2937;
+      color: #f9fafb;
+    }
+    body.dark .chip.active {
+      background: var(--linkedin-blue);
+      border-color: var(--linkedin-blue);
+      color: #ffffff;
+    }
     .view-toggle { display: flex; gap: 0.25rem; }
     .view-toggle .btn { padding: 0.35rem 0.65rem; font-size: 0.85rem; }
     .view-toggle .btn.active { background: var(--linkedin-blue); color: #fff; }
