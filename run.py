@@ -69,6 +69,10 @@ def _is_usable_record(record: dict) -> bool:
     if company.isdigit():
         company = ""
 
+    # Si solo hay nombre pero no hay más señal útil, se descarta
+    if name and not (email or location or company):
+        return False
+
     # Si no tiene ningún dato útil, no se exporta
     return bool(name or email or location or company)
 
@@ -344,7 +348,8 @@ if __name__ == "__main__":
 
     if not filtered_records:
         print("No hay perfiles parseables para exportar.")
-        raise SystemExit(1)
+        print("Finalizando sin error para evitar reinicios en bucle.")
+        raise SystemExit(0)
 
     for r in filtered_records:
         print(f"  · {r['name']:30s} | {r['company']:25s} | {r['location']}")
