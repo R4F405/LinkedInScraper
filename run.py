@@ -292,8 +292,22 @@ if __name__ == "__main__":
         raise SystemExit(1)
 
     print("\n── Parseando HTML ──────────────────────────────")
-    records = [parse_profile_file(p) for p in saved_paths]
+    records = []
+    missing_files = 0
+    for p in saved_paths:
+        try:
+            records.append(parse_profile_file(p))
+        except FileNotFoundError:
+            missing_files += 1
+            print(f"  ⚠  Archivo no encontrado, se omite: {p}")
+
     print(f"  {len(records)} perfiles parseados")
+    if missing_files:
+        print(f"  ⚠  {missing_files} perfiles omitidos por HTML inexistente")
+
+    if not records:
+        print("No hay perfiles parseables para exportar.")
+        raise SystemExit(1)
 
     for r in records:
         print(f"  · {r['name']:30s} | {r['company']:25s} | {r['location']}")
@@ -305,8 +319,11 @@ if __name__ == "__main__":
         for path in saved_paths:
             if path.stem == owner_slug:  # path.stem es el nombre sin extensión
                 # Parsear solo ese archivo para obtener el nombre
-                owner_record = parse_profile_file(path)
-                owner_name = owner_record.get("name", "")
+                try:
+                    owner_record = parse_profile_file(path)
+                    owner_name = owner_record.get("name", "")
+                except FileNotFoundError:
+                    owner_name = ""
                 break
         
         # Si no lo encontramos en saved_paths, usar el slug formateado
