@@ -49,5 +49,6 @@ COPY . .
 # Default in server/container: run headless
 ENV SCRAPER_HEADLESS=true
 
-# Interactive by default because run.py asks for mode/urls
-CMD ["python", "run.py"]
+# Keep container alive; run the scraper with:
+#   docker exec -it linkedin-scraper python run.py
+CMD ["tail", "-f", "/dev/null"]
