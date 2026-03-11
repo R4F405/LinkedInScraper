@@ -35,6 +35,7 @@ from utils.config import RAW_HTML_DIR
 _BREAK_EVERY = 300
 _BREAK_MIN_S = 15 * 60   # 15 min
 _BREAK_MAX_S = 35 * 60   # 35 min
+_MAX_CONNECTIONS_PER_FETCH = 10  # Límite temporal para acelerar pruebas
 
 
 class CancelToMenu(Exception):
@@ -212,7 +213,7 @@ def run_mode_1_2(driver, seed_urls: list[str]) -> tuple[list, str]:
     print("\n── Obteniendo conexiones ──────────────────────")
     all_urls: list[str] = []
     for seed in seed_urls:
-        conns = get_connections(driver, seed)
+        conns = get_connections(driver, seed, max_connections=_MAX_CONNECTIONS_PER_FETCH)
         all_urls.extend(conns)
     all_urls = list(dict.fromkeys(all_urls))
     print(f"Total conexiones únicas: {len(all_urls)}")
@@ -247,7 +248,7 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
     all_saved.extend(saved_owner)
     
     print("\n── [Modo 3] Obteniendo tus conexiones directas ─")
-    level1_urls = get_connections(driver, own_url)
+    level1_urls = get_connections(driver, own_url, max_connections=_MAX_CONNECTIONS_PER_FETCH)
     level1_urls = list(dict.fromkeys(level1_urls))
     print(f"  Contactos directos encontrados: {len(level1_urls)}")
     if not level1_urls:
@@ -265,7 +266,7 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
         # b) Obtener y scrapear sus conexiones (nivel 2)
         print(f"  Obteniendo conexiones de {contact_url} …")
         try:
-            level2_urls = get_connections(driver, contact_url)
+            level2_urls = get_connections(driver, contact_url, max_connections=_MAX_CONNECTIONS_PER_FETCH)
             level2_urls = list(dict.fromkeys(level2_urls))
             print(f"  → {len(level2_urls)} conexiones de nivel 2")
             saved_lvl2 = _scrape_batch(driver, level2_urls, already_scraped, counter)

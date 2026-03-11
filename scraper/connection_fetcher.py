@@ -158,7 +158,11 @@ def _extract_profile_urls(driver: webdriver.Chrome) -> list[str]:
     return urls
 
 
-def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
+def get_connections(
+    driver: webdriver.Chrome,
+    profile_url: str,
+    max_connections: int | None = None,
+) -> list[str]:
     """
     Si profile_url es una URL de búsqueda/resultados de LinkedIn, la carga
     directamente y extrae los perfiles. Si es una URL de perfil /in/, busca
@@ -166,6 +170,7 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
 
     Returns:
         Lista de URLs de perfil de cada conexión.
+        Si max_connections se indica, limita el total devuelto.
     """
     # Caso A: ya es una página de resultados (el usuario pegó la URL de contactos)
     if "/search/results/" in profile_url or "connectionOf=" in profile_url:
@@ -182,6 +187,8 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
         collected = set()
         _collect_all_pages(driver, collected)
         urls = list(collected)
+        if max_connections is not None:
+            urls = urls[:max_connections]
         print(f"  [connections] {len(urls)} perfiles encontrados")
         return urls
 
@@ -273,6 +280,8 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
     collected = set()
     _collect_all_pages(driver, collected)
     urls = [u for u in collected if slug not in u]
+    if max_connections is not None:
+        urls = urls[:max_connections]
     print(f"  [connections] {len(urls)} conexiones encontradas para {slug}")
     return urls
 
