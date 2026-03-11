@@ -200,12 +200,23 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
 
     # Buscar el enlace "X contactos" en la página del perfil
     connection_link = None
-    for sel in ["a[href*='connections']", "a[href*='/in/'][href*='connection']"]:
+    for sel in [
+        "a[href*='connections']",
+        "a[href*='/in/'][href*='connection']",
+        "a[href*='/search/results/people/'][href*='connectionOf=']",
+    ]:
         try:
             links = driver.find_elements(By.CSS_SELECTOR, sel)
             for link in links:
                 text = link.text.lower()
-                if "contacto" in text or "connection" in text:
+                href = (link.get_attribute("href") or "").lower()
+                if (
+                    "contacto" in text
+                    or "connection" in text
+                    or "network" in text
+                    or "connectionof=" in href
+                    or "/search/results/people/" in href
+                ):
                     connection_link = link
                     break
             if connection_link:
@@ -218,6 +229,16 @@ def get_connections(driver: webdriver.Chrome, profile_url: str) -> list[str]:
             connection_link = driver.find_element(
                 By.XPATH,
                 "//*[contains(translate(normalize-space(), 'CONTACTOS', 'contactos'), 'contactos') and (self::a or self::button)]"
+            )
+        except NoSuchElementException:
+            pass
+
+    if not connection_link:
+        # Fallback adicional: cualquier enlace a resultados de personas con connectionOf
+        try:
+            connection_link = driver.find_element(
+                By.XPATH,
+                "//a[contains(@href, '/search/results/people/') and contains(@href, 'connectionOf=')]"
             )
         except NoSuchElementException:
             pass
