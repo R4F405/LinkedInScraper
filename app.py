@@ -19,8 +19,8 @@ from exporter.export import export_to_pdf
 
 app = Flask(__name__, template_folder=str(ROOT_DIR / "templates"))
 
-# Nombre base de archivos de resultados (results_YYYYMMDD_HHMMSS)
-RESULTS_PATTERN = re.compile(r"^results_\d{8}_\d{6}$")
+# Archivos de resultados: results_YYYYMMDD_HHMMSS o ContactosNombre_YYYYMMDD_HHMMSS
+RESULTS_PATTERN = re.compile(r"^.+_\d{8}_\d{6}$")
 
 
 def _list_scrape_ids():
@@ -47,12 +47,12 @@ def _scrape_record_count(scrape_id: str) -> int:
 
 
 def _parse_timestamp(scrape_id: str) -> str:
-    """Extrae timestamp legible del ID (results_20260309_130049 -> 09/03/2026 13:00:49)."""
-    part = scrape_id.replace("results_", "")
-    if len(part) == 15 and part[:8].isdigit() and part[9:].isdigit():
+    """Extrae timestamp legible del ID (…_20260309_130049 -> 09/03/2026 13:00)."""
+    m = re.search(r"_(\d{8}_\d{6})$", scrape_id)
+    if m:
         try:
-            dt = datetime.strptime(part, "%Y%m%d_%H%M%S")
-            return dt.strftime("%d/%m/%Y %H:%M:%S")
+            dt = datetime.strptime(m.group(1), "%Y%m%d_%H%M%S")
+            return dt.strftime("%d/%m/%Y %H:%M")
         except ValueError:
             pass
     return scrape_id
@@ -97,24 +97,25 @@ def api_scrape_data(scrape_id: str):
 
 @app.route("/api/scrape", methods=["POST"])
 def api_start_scrape():
-    """Inicia el scraping de una URL. En macOS abre una ventana de Terminal para que Chrome sea visible."""
+    """Inicia el scraping de una URL (perfil + sus contactos) vía run.py en modo no interactivo."""
     body = request.get_json() or {}
     url = (body.get("url") or "").strip()
     if not url or "linkedin.com/in/" not in url:
         return jsonify({"ok": False, "error": "URL inválida. Debe ser un perfil de LinkedIn."}), 400
-    script = ROOT_DIR / "run_single.py"
+    script = ROOT_DIR / "run.py"
     if not script.exists():
-        return jsonify({"ok": False, "error": "run_single.py no encontrado"}), 500
+        return jsonify({"ok": False, "error": "run.py no encontrado"}), 500
     try:
         if sys.platform == "darwin":
-            # macOS: abrir nueva ventana de Terminal para que Chrome se vea (misma sesión gráfica)
-            import tempfile
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".command", delete=False, dir=str(ROOT_DIR)
             ) as f:
                 f.write("#!/bin/bash\n")
                 f.write(f"cd {str(ROOT_DIR)!r}\n")
-                f.write(f"exec {sys.executable!r} run_single.py {url!r}\n")
+                f.write("export SCRAPER_NONINTERACTIVE=1\n")
+                f.write("export SCRAPER_MODE=url\n")
+                f.write(f"export SCRAPER_SEED_URL={url!r}\n")
+                f.write(f"exec {sys.executable!r} run.py\n")
                 f.write('echo ""\nread -p "Pulsa Enter para cerrar..."\n')
             os.chmod(f.name, 0o755)
             subprocess.Popen(
@@ -122,19 +123,53 @@ def api_start_scrape():
                 env=os.environ.copy(),
             )
         else:
+            env = os.environ.copy()
+            env["SCRAPER_NONINTERACTIVE"] = "1"
+            env["SCRAPER_MODE"] = "url"
+            env["SCRAPER_SEED_URL"] = url
             subprocess.Popen(
-                [sys.executable, str(script), url],
+                [sys.executable, str(script)],
                 cwd=str(ROOT_DIR),
-                env=os.environ.copy(),
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
     if sys.platform == "darwin":
-        msg = "Se ha abierto una ventana de Terminal. Ahí se ejecutará el scraping y se abrirá Chrome. Al terminar, actualiza la lista."
+        msg = "Se ha abierto una ventana de Terminal. Se scrapeará ese perfil y sus contactos; al terminar, actualiza la lista."
     else:
-        msg = "Scraping iniciado. Se abrirá Chrome; al terminar, actualiza la lista."
+        msg = "Scraping iniciado (perfil + contactos). Al terminar, actualiza la lista."
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/api/scrape-my-contacts", methods=["POST"])
+def api_scrape_my_contacts():
+    """Inicia el scraping de los contactos de quien inicia sesión usando run.py en modo no interactivo."""
+    body = request.get_json() or {}
+    email = (body.get("email") or "").strip()
+    password = (body.get("password") or "").strip()
+    if not email or not password:
+        return jsonify({"ok": False, "error": "Indica email y contraseña de LinkedIn."}), 400
+    script = ROOT_DIR / "run.py"
+    if not script.exists():
+        return jsonify({"ok": False, "error": "run.py no encontrado"}), 500
+    try:
+        env = os.environ.copy()
+        env["LINKEDIN_EMAIL"] = email
+        env["LINKEDIN_PASSWORD"] = password
+        env["SCRAPER_NONINTERACTIVE"] = "1"
+        env["SCRAPER_MODE"] = "my_contacts"
+        subprocess.Popen(
+            [sys.executable, str(script)],
+            cwd=str(ROOT_DIR),
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    msg = "Scraping de tus contactos iniciado en segundo plano. Al terminar, actualiza la lista."
     return jsonify({"ok": True, "message": msg})
 
 
