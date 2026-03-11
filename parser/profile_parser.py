@@ -54,6 +54,30 @@ _PHONE_SELECTORS = [
     "a[href^='tel:']",
 ]
 
+_NAME_REJECT_TOKENS = (
+    "linkedin",
+    "informacion de contacto",
+    "información de contacto",
+    "datos destacados",
+    "acerca de",
+    "contactos",
+    "notificaciones",
+)
+
+_COMPANY_ROLE_HINTS = (
+    "developer",
+    "desarroll",
+    "responsable",
+    "mozo",
+    "manager",
+    "ingenier",
+    "consultor",
+    "analyst",
+    "director",
+    "software",
+    "full stack",
+)
+
 
 def _extract_phone(soup: BeautifulSoup) -> str:
     """
@@ -109,6 +133,93 @@ def _first_text(soup: BeautifulSoup, selectors: list[str]) -> str:
     return ""
 
 
+def _normalize_ws(text: str) -> str:
+    return " ".join((text or "").split()).strip()
+
+
+def _looks_like_name(text: str) -> bool:
+    t = _normalize_ws(text)
+    if not t or len(t) > 80:
+        return False
+    low = t.lower()
+    if any(tok in low for tok in _NAME_REJECT_TOKENS):
+        return False
+    if "@" in t or "http" in low:
+        return False
+    if any(ch.isdigit() for ch in t):
+        return False
+    return any(ch.isalpha() for ch in t)
+
+
+def _extract_name(soup: BeautifulSoup) -> str:
+    # 1) Selectores tradicionales
+    name = _first_text(soup, _NAME_SELECTORS)
+    if _looks_like_name(name):
+        return name
+
+    # 2) Top card moderno: heading principal en <h2>
+    for h2 in soup.find_all("h2"):
+        text = _normalize_ws(h2.get_text(" ", strip=True))
+        if _looks_like_name(text):
+            return text
+
+    # 3) Titulo del documento: "Nombre | LinkedIn"
+    if soup.title and soup.title.string:
+        title = _normalize_ws(soup.title.string)
+        if "|" in title:
+            candidate = _normalize_ws(title.split("|", 1)[0])
+            if _looks_like_name(candidate):
+                return candidate
+
+    # 4) Modal de contacto: "Perfil de X"
+    for p in soup.find_all("p"):
+        text = _normalize_ws(p.get_text(" ", strip=True))
+        low = text.lower()
+        if low.startswith("perfil de ") and len(text) > len("Perfil de "):
+            candidate = text[len("Perfil de "):].strip()
+            if _looks_like_name(candidate):
+                return candidate
+
+    return ""
+
+
+def _extract_location(soup: BeautifulSoup) -> str:
+    # 1) Selectores tradicionales
+    text = _first_text(soup, _LOCATION_SELECTORS)
+    if text:
+        return text
+
+    # 2) En el top-card moderno, justo antes del enlace de contacto
+    anchor = soup.find("a", href=lambda h: h and "overlay/contact-info" in h)
+    if anchor:
+        container = anchor.parent
+        if container:
+            for sib in container.find_previous_siblings("p"):
+                t = _normalize_ws(sib.get_text(" ", strip=True))
+                if not t or t == "·":
+                    continue
+                low = t.lower()
+                if "@" in t or "contacto" in low or "seguidores" in low:
+                    continue
+                if len(t) <= 100:
+                    return t
+
+    # 3) Fallback: primera frase corta con pinta de ubicación
+    for p in soup.find_all("p"):
+        t = _normalize_ws(p.get_text(" ", strip=True))
+        low = t.lower()
+        if not t or len(t) > 100:
+            continue
+        if "@" in t or "http" in low:
+            continue
+        if any(bad in low for bad in ("seguidores", "contacto", "acerca", "hola", "mensaje")):
+            continue
+        if "," in t or "alrededores" in low:
+            return t
+
+    return ""
+
+
 def _extract_company(soup: BeautifulSoup) -> str:
     """
     Extrae la empresa actual del perfil.
@@ -121,7 +232,14 @@ def _extract_company(soup: BeautifulSoup) -> str:
     su id o por el heading h2, filtrando textos que no sean empresas.
     """
     def _is_valid_company(text: str) -> bool:
-        return bool(text) and not text.lower().startswith(_COMPANY_REJECT)
+        if not text:
+            return False
+        low = text.lower()
+        if low.startswith(_COMPANY_REJECT):
+            return False
+        if any(hint in low for hint in _COMPANY_ROLE_HINTS):
+            return False
+        return True
 
     # Intento 1: aria-label en el top card
     prefixes = ("empresa actual:", "current company:", "empresa:")
@@ -142,6 +260,30 @@ def _extract_company(soup: BeautifulSoup) -> str:
             text = el.get_text(strip=True)
             if _is_valid_company(text):
                 return text
+
+    # Intento 2b: tarjeta de empresa del top-card moderno
+    for svg in soup.find_all("svg", id=lambda v: v and str(v).startswith("company-accent")):
+        parent = svg.find_parent()
+        if not parent:
+            continue
+        p = parent.find_next("p")
+        if not p:
+            continue
+        text = _normalize_ws(p.get_text(" ", strip=True))
+        if _is_valid_company(text):
+            return text
+
+    # Intento 2c: línea resumen tipo "Empresa · Centro"
+    for p in soup.find_all("p"):
+        text = _normalize_ws(p.get_text(" ", strip=True))
+        if "·" not in text:
+            continue
+        low = text.lower()
+        if any(bad in low for bad in ("1er", "2º", "2o", "contacto", "seguidores", "mensaje")):
+            continue
+        first = _normalize_ws(text.split("·", 1)[0])
+        if _is_valid_company(first):
+            return first
 
     # Intento 3: buscar el <section> cuyo h2 diga "Experiencia" / "Experience"
     for section in soup.find_all("section"):
@@ -198,10 +340,10 @@ def parse_profile_html(html: str) -> dict:
     soup = BeautifulSoup(html, "lxml")
 
     return {
-        "name":      _first_text(soup, _NAME_SELECTORS),
+        "name":      _extract_name(soup),
         "email":     _first_text(soup, _EMAIL_SELECTORS),
         "phone":     _extract_phone(soup),
-        "location":  _first_text(soup, _LOCATION_SELECTORS),
+        "location":  _extract_location(soup),
         "company":   _extract_company(soup),
     }
 
