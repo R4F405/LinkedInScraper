@@ -22,6 +22,8 @@ Nota para integración con GUI:
 import random
 import time
 import os
+import sys
+from pathlib import Path
 
 from scraper.driver import create_driver, quit_driver
 from scraper.login import login, get_own_profile_url
@@ -41,6 +43,38 @@ _OWN_CONNECTIONS_URL = "https://www.linkedin.com/mynetwork/invite-connect/connec
 
 class CancelToMenu(Exception):
     """Señal de cancelación para volver al menú principal."""
+
+
+class _Tee:
+    """Duplica la salida a varios streams (stdout/archivo)."""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+            s.flush()
+
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
+
+def _setup_runtime_logging() -> None:
+    """
+    Si SCRAPER_LOG_FILE está definido, duplica stdout/stderr a ese archivo.
+    Esto permite ver la ejecución en Docker Desktop (logs del contenedor).
+    """
+    log_file = os.getenv("SCRAPER_LOG_FILE", "").strip()
+    if not log_file:
+        return
+
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handle = open(log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _Tee(sys.stdout, log_handle)
+    sys.stderr = _Tee(sys.stderr, log_handle)
 
 
 def _is_usable_record(record: dict) -> bool:
@@ -291,6 +325,7 @@ def run_mode_3(driver, own_url: str) -> tuple[list, str]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    _setup_runtime_logging()
     headless_env = os.getenv("SCRAPER_HEADLESS", "true").strip().lower()
     headless = headless_env in ("1", "true", "yes", "on")
     driver = create_driver(headless=headless)

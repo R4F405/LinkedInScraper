@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       - SCRAPER_HEADLESS=true
+      - SCRAPER_LOG_FILE=/app/data/output/runtime.log
     volumes:
       - ./data:/app/data
       - ./profiles.txt:/app/profiles.txt

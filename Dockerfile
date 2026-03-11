@@ -49,6 +49,7 @@ COPY . .
 # Default in server/container: run headless
 ENV SCRAPER_HEADLESS=true
 
-# Keep container alive; run the scraper with:
+# Keep container alive while streaming runtime log to Docker Desktop logs.
+# Run scraper with:
 #   docker exec -it linkedin-scraper python run.py
-CMD ["tail", "-f", "/dev/null"]
+CMD ["sh", "-lc", "mkdir -p /app/data/output && touch /app/data/output/runtime.log && tail -n +1 -F /app/data/output/runtime.log"]
