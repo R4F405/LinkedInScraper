@@ -265,13 +265,13 @@ def get_connections(
     ):
         print(f"  [connections] URL de resultados detectada, cargando directamente...")
         driver.get(profile_url)
-        _human_pause(0.8, 1.5)
+        time.sleep(random.uniform(2.0, 3.5))  # dejar que React hidrate la página
         try:
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.XPATH, "//a[contains(@href, '/in/')]"))
             )
         except TimeoutException:
-            print(f"  [connections] No cargaron resultados")
+            print(f"  [connections] No cargaron resultados (timeout 20s)")
             return []
         collected = set()
         _collect_all_pages(driver, collected)
