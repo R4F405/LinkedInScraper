@@ -41,6 +41,27 @@ class CancelToMenu(Exception):
     """Señal de cancelación para volver al menú principal."""
 
 
+def _is_usable_record(record: dict) -> bool:
+    """Filtra filas vacías o de páginas intersticiales (captcha/verificación)."""
+    name = (record.get("name") or "").strip().lower()
+    email = (record.get("email") or "").strip()
+    location = (record.get("location") or "").strip()
+    company = (record.get("company") or "").strip()
+
+    blocked = (
+        "verificacion de seguridad",
+        "verificación de seguridad",
+        "iniciar sesion para ver el perfil completo",
+        "iniciar sesión para ver el perfil completo",
+        "sign in to view full profile",
+    )
+    if any(b in name for b in blocked):
+        return False
+
+    # Si no tiene ningún dato útil, no se exporta
+    return bool(name or email or location or company)
+
+
 def _prompt_cancel(context: str) -> None:
     """
     Checkpoint interactivo para permitir cancelar y volver al menú.
@@ -305,11 +326,16 @@ if __name__ == "__main__":
     if missing_files:
         print(f"  ⚠  {missing_files} perfiles omitidos por HTML inexistente")
 
-    if not records:
+    filtered_records = [r for r in records if _is_usable_record(r)]
+    dropped = len(records) - len(filtered_records)
+    if dropped:
+        print(f"  ⚠  {dropped} perfiles omitidos por datos vacíos/intersticiales")
+
+    if not filtered_records:
         print("No hay perfiles parseables para exportar.")
         raise SystemExit(1)
 
-    for r in records:
+    for r in filtered_records:
         print(f"  · {r['name']:30s} | {r['company']:25s} | {r['location']}")
 
     # Extraer el nombre del owner buscando el record que coincida con owner_slug
@@ -334,6 +360,6 @@ if __name__ == "__main__":
     print("\n── Exportando resultados ───────────────────────")
     if owner_name:
         print(f"  Propietario: {owner_name}")
-    paths = export_results(records, fmt="both", owner_name=owner_name)
+    paths = export_results(filtered_records, fmt="both", owner_name=owner_name)
     for p in paths:
         print(f"  → {p}")
