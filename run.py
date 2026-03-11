@@ -36,6 +36,7 @@ _BREAK_EVERY = 300
 _BREAK_MIN_S = 15 * 60   # 15 min
 _BREAK_MAX_S = 35 * 60   # 35 min
 _MAX_CONNECTIONS_PER_FETCH = 10  # Límite temporal para acelerar pruebas
+_OWN_CONNECTIONS_URL = "https://www.linkedin.com/mynetwork/invite-connect/connections/"
 
 
 class CancelToMenu(Exception):
@@ -174,11 +175,14 @@ def _ask_single_url() -> str:
 
 def _ask_urls() -> list[str]:
     print("\nIntroduce las URLs de perfil (Enter vacío para terminar):")
+    print("  (Escribe 'q' para volver al menú principal)")
     urls: list[str] = []
     while True:
         raw = input(f"  URL {len(urls) + 1}: ").strip()
         if not raw:
             break
+        if raw.lower() == "q":
+            return []
         if "linkedin.com/in/" not in raw:
             print("  ⚠  No parece una URL de LinkedIn (/in/). Inténtalo de nuevo.")
             continue
@@ -197,7 +201,7 @@ def _normalize(url: str) -> str:
 # Modos de ejecución
 # ---------------------------------------------------------------------------
 
-def run_mode_1_2(driver, seed_urls: list[str]) -> tuple[list, str]:
+def run_mode_1_2(driver, seed_urls: list[str], own_url: str = "") -> tuple[list, str]:
     """
     Scrapea las conexiones de cada URL semilla (comportamiento original).
     Returns: (saved_paths, owner_slug) donde owner_slug es el slug del primer seed.
@@ -214,6 +218,11 @@ def run_mode_1_2(driver, seed_urls: list[str]) -> tuple[list, str]:
     all_urls: list[str] = []
     for seed in seed_urls:
         conns = get_connections(driver, seed, max_connections=_MAX_CONNECTIONS_PER_FETCH)
+        # Fallback para perfil propio: algunos perfiles no muestran el enlace
+        # de contactos en la top-card, pero sí en la sección de red propia.
+        if not conns and own_url and _normalize(seed) == _normalize(own_url):
+            print("  [connections] Fallback a lista de conexiones propia…")
+            conns = get_connections(driver, _OWN_CONNECTIONS_URL, max_connections=_MAX_CONNECTIONS_PER_FETCH)
         all_urls.extend(conns)
     all_urls = list(dict.fromkeys(all_urls))
     print(f"Total conexiones únicas: {len(all_urls)}")
@@ -316,7 +325,7 @@ if __name__ == "__main__":
                     if not config["seed_urls"]:
                         print("No se introdujo ninguna URL.")
                         continue
-                    saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"])
+                    saved_paths, owner_slug = run_mode_1_2(driver, config["seed_urls"], own_url=config.get("own_url", ""))
                 break
             except CancelToMenu:
                 print("\n  Cancelado por usuario. Volviendo al menú principal...\n")

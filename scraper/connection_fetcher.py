@@ -172,8 +172,12 @@ def get_connections(
         Lista de URLs de perfil de cada conexión.
         Si max_connections se indica, limita el total devuelto.
     """
-    # Caso A: ya es una página de resultados (el usuario pegó la URL de contactos)
-    if "/search/results/" in profile_url or "connectionOf=" in profile_url:
+    # Caso A: ya es una página de resultados/listado de conexiones.
+    if (
+        "/search/results/" in profile_url
+        or "connectionOf=" in profile_url
+        or "/mynetwork/invite-connect/connections" in profile_url
+    ):
         print(f"  [connections] URL de resultados detectada, cargando directamente...")
         driver.get(profile_url)
         _human_pause(0.8, 1.5)
