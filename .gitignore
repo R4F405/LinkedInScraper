@@ -13,8 +13,7 @@ __pycache__/
 *.command
 
 # Datos
-data/raw/*.html
-data/sessions/
+data/
 results_*.csv
 results_*.xlsx
 output/
