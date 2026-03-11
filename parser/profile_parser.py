@@ -62,6 +62,12 @@ _NAME_REJECT_TOKENS = (
     "acerca de",
     "contactos",
     "notificaciones",
+    "verificacion de seguridad",
+    "verificación de seguridad",
+    "security verification",
+    "iniciar sesion para ver el perfil completo",
+    "iniciar sesión para ver el perfil completo",
+    "sign in to view full profile",
 )
 
 _COMPANY_ROLE_HINTS = (
