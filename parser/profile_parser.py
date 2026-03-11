@@ -68,6 +68,13 @@ _NAME_REJECT_TOKENS = (
     "iniciar sesion para ver el perfil completo",
     "iniciar sesión para ver el perfil completo",
     "sign in to view full profile",
+    "iniciar sesion",
+    "iniciar sesión",
+    "hola de nuevo",
+    "encuentra el empleo",
+    "sitios web",
+    "join now",
+    "sign in",
 )
 
 _COMPANY_ROLE_HINTS = (

@@ -54,8 +54,23 @@ def _is_usable_record(record: dict) -> bool:
         "iniciar sesion para ver el perfil completo",
         "iniciar sesión para ver el perfil completo",
         "sign in to view full profile",
+        "iniciar sesion",
+        "iniciar sesión",
+        "hola de nuevo",
+        "encuentra el empleo",
+        "sitios web",
+        "join now",
+        "sign in",
     )
     if any(b in name for b in blocked):
+        return False
+
+    # Datos de empresa obviamente basura (solo dígitos) se tratan como vacíos
+    if company.isdigit():
+        company = ""
+
+    # Si solo hay nombre pero no hay más señal útil, se descarta
+    if name and not (email or location or company):
         return False
 
     # Si no tiene ningún dato útil, no se exporta
