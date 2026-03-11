@@ -38,7 +38,8 @@ _BREAK_EVERY = 300
 _BREAK_MIN_S = 15 * 60   # 15 min
 _BREAK_MAX_S = 35 * 60   # 35 min
 _MAX_CONNECTIONS_PER_FETCH = 10  # Límite temporal para acelerar pruebas
-_OWN_CONNECTIONS_URL = "https://www.linkedin.com/mynetwork/invite-connect/connections/"
+# Búsqueda de primeros contactos: página de resultados estándar que el scraper ya maneja.
+_OWN_CONNECTIONS_URL = "https://www.linkedin.com/search/results/people/?network=%5B%22F%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH"
 
 
 class CancelToMenu(Exception):
@@ -243,10 +244,11 @@ def run_mode_1_2(driver, seed_urls: list[str], own_url: str = "") -> tuple[list,
     print("\n── Scraping perfiles semilla ──────────────────")
     counter = [0]
     already_scraped = set()
-    
+
     # Primero scrapear el perfil del owner (primera seed) para tener su nombre
     owner_slug = seed_urls[0].rstrip("/").split("/")[-1] if seed_urls else ""
-    saved = _scrape_batch(driver, [seed_urls[0]], already_scraped, counter) if seed_urls else []
+    owner_paths = _scrape_batch(driver, [seed_urls[0]], already_scraped, counter) if seed_urls else []
+    saved = list(owner_paths)  # separado para excluir del filtro de exportación
     
     print("\n── Obteniendo conexiones ──────────────────────")
     all_urls: list[str] = []
@@ -262,11 +264,12 @@ def run_mode_1_2(driver, seed_urls: list[str], own_url: str = "") -> tuple[list,
     print(f"Total conexiones únicas: {len(all_urls)}")
     if not all_urls:
         print("No se encontraron conexiones.")
-        return (saved, owner_slug)
+        # Devolvemos solo los paths de contactos (vacío); owner separado via owner_slug
+        return ([], owner_slug)
 
     print("\n── Scraping perfiles ──────────────────────────")
-    saved.extend(_scrape_batch(driver, all_urls, already_scraped, counter))
-    return (saved, owner_slug)
+    contact_paths = _scrape_batch(driver, all_urls, already_scraped, counter)
+    return (contact_paths, owner_slug)
 
 
 def run_mode_3(driver, own_url: str) -> tuple[list, str]:
@@ -420,7 +423,10 @@ if __name__ == "__main__":
         print(f"  ⚠  {dropped} perfiles omitidos por datos vacíos/intersticiales")
 
     if not filtered_records:
-        print("No hay perfiles parseables para exportar.")
+        if not saved_paths:
+            print("No se encontraron conexiones del perfil indicado.")
+        else:
+            print("No hay perfiles parseables para exportar.")
         print("Finalizando sin error para evitar reinicios en bucle.")
         raise SystemExit(0)
 
